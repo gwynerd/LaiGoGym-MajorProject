@@ -1,55 +1,80 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
-import { useNavigate } from "react-router";
+import React, { useEffect, useMemo, useState } from "react";
 
 import CommanderNav from "../components/CommanderNav";
 
 import {
   Activity,
   AlertTriangle,
-  BarChart3,
   Brain,
   Check,
   CheckCircle2,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
   Clock3,
   Dumbbell,
-  Home,
   Loader2,
   RefreshCw,
   Sparkles,
   Target,
   TrendingDown,
   TrendingUp,
-  User,
   UserRound,
   Users,
 } from "lucide-react";
 
 import {
-  getCurrentUser,
+  calculateAgeFromDob,
   getCommanderById,
-  getPersonnelByCommanderId,
+  getCurrentUser,
   getPastIPPTRecordsForPersonnel,
   getPastOfficialIPPTRecordsForPersonnel,
+  getPersonnelByCommanderId,
 } from "../services/firestoreService";
 
-import {
-  calculateAgeFromDob,
-} from "../services/firestoreService";
+import { calculateIPPT } from "../services/ipptCalculator";
 
-import {
-  calculateIPPT,
-} from "../services/ipptCalculator";
+import { generateCommanderTrainingBrief } from "../services/geminiService";
 
-import {
-  generateCommanderTrainingBrief,
-} from "../services/geminiService";
+const TOTAL_STEPS = 5;
+
+const STEP_INFORMATION = [
+  {
+    number: 1,
+    shortLabel: "Readiness",
+    title: "Review Section Readiness",
+    description:
+      "Understand your section’s current fitness status and identify weak areas.",
+  },
+  {
+    number: 2,
+    shortLabel: "Priority",
+    title: "Identify Priority Personnel",
+    description:
+      "Review personnel who require the most immediate training attention.",
+  },
+  {
+    number: 3,
+    shortLabel: "AI Brief",
+    title: "AI Decision Brief",
+    description:
+      "Summarise section performance, concerns and recommended actions.",
+  },
+  {
+    number: 4,
+    shortLabel: "Plan",
+    title: "Training Plan",
+    description:
+      "Review a suggested weekly focus based on the section’s weakest components.",
+  },
+  {
+    number: 5,
+    shortLabel: "Follow-Up",
+    title: "Commander Follow-Up",
+    description:
+      "Complete recommended actions and review the section again when needed.",
+  },
+];
 
 const getPersonID = (person) => {
   return person?.userID || person?.id || "";
@@ -61,8 +86,7 @@ const getPersonName = (person) => {
   return (
     person.fullName ||
     person.name ||
-    `${person.firstName || ""} ${person.lastName || ""
-      }`.trim() ||
+    `${person.firstName || ""} ${person.lastName || ""}`.trim() ||
     "Unknown"
   );
 };
@@ -70,10 +94,7 @@ const getPersonName = (person) => {
 const getPersonAge = (person) => {
   const storedAge = Number(person?.age);
 
-  if (
-    Number.isFinite(storedAge) &&
-    storedAge > 0
-  ) {
+  if (Number.isFinite(storedAge) && storedAge > 0) {
     return storedAge;
   }
 
@@ -103,24 +124,7 @@ const getRecordTimestamp = (record) => {
 
   const parsedDate = new Date(value).getTime();
 
-  return Number.isNaN(parsedDate)
-    ? 0
-    : parsedDate;
-};
-
-const formatRecordDate = (record) => {
-  const timestamp = getRecordTimestamp(record);
-
-  if (!timestamp) return "Date unavailable";
-
-  return new Date(timestamp).toLocaleDateString(
-    "en-SG",
-    {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }
-  );
+  return Number.isNaN(parsedDate) ? 0 : parsedDate;
 };
 
 const getTotalScore = (record) => {
@@ -134,26 +138,15 @@ const getTotalScore = (record) => {
 };
 
 const getPushups = (record) => {
-  return Number(
-    record?.pushups ??
-    record?.pushUps ??
-    0
-  );
+  return Number(record?.pushups ?? record?.pushUps ?? 0);
 };
 
 const getSitups = (record) => {
-  return Number(
-    record?.situps ??
-    record?.sitUps ??
-    0
-  );
+  return Number(record?.situps ?? record?.sitUps ?? 0);
 };
 
 const getRuntime = (record) => {
-  const runtime =
-    record?.runtime ??
-    record?.runTime ??
-    "";
+  const runtime = record?.runtime ?? record?.runTime ?? "";
 
   if (
     runtime === null ||
@@ -167,11 +160,7 @@ const getRuntime = (record) => {
 };
 
 const getResult = (record) => {
-  return (
-    record?.result ||
-    record?.ippt ||
-    "N/A"
-  );
+  return record?.result || record?.ippt || "N/A";
 };
 
 const isPassingResult = (record) => {
@@ -185,10 +174,7 @@ const isPassingResult = (record) => {
 };
 
 /*
-  Service returns records using:
-  records.slice(0, 5).reverse()
-
-  Therefore they are ordered from oldest to newest.
+  The Firestore service returns records from oldest to newest.
 */
 const getLatestRecord = (records = []) => {
   if (!Array.isArray(records) || records.length === 0) {
@@ -217,37 +203,28 @@ const getDaysSinceRecord = (record) => {
   );
 };
 
-const calculateRecordBreakdown = (
-  record,
-  person
-) => {
+const calculateRecordBreakdown = (record, person) => {
   if (!record) return null;
 
-  const age = getPersonAge(person);
-  const pushups = getPushups(record);
-  const situps = getSitups(record);
   const runtime = getRuntime(record);
 
   if (
     runtime === "N/A" ||
-    !String(runtime).includes(":")
+    !runtime.includes(":")
   ) {
     return null;
   }
 
   return calculateIPPT({
-    age,
-    pushups,
-    situps,
+    age: getPersonAge(person),
+    pushups: getPushups(record),
+    situps: getSitups(record),
     runtime,
     wantedGoal: "Pass",
   });
 };
 
-const getComponentAnalysis = (
-  record,
-  person
-) => {
+const getComponentAnalysis = (record, person) => {
   const breakdown = calculateRecordBreakdown(
     record,
     person
@@ -283,9 +260,7 @@ const getComponentAnalysis = (
       component.maximum === 0
         ? 0
         : Math.round(
-          (component.score /
-            component.maximum) *
-          100
+          (component.score / component.maximum) * 100
         ),
   }));
 
@@ -315,21 +290,16 @@ const calculateTrend = (
   if (!latestPractice || !previousPractice) {
     return {
       type: "neutral",
-      label: "N/A",
+      label: "No trend",
       difference: 0,
       description:
         "At least two practice records are required.",
     };
   }
 
-  const latestScore =
-    getTotalScore(latestPractice);
-
-  const previousScore =
-    getTotalScore(previousPractice);
-
   const difference =
-    latestScore - previousScore;
+    getTotalScore(latestPractice) -
+    getTotalScore(previousPractice);
 
   if (difference >= 3) {
     return {
@@ -386,10 +356,7 @@ const calculatePriority = ({
       "No practice IPPT result is available"
     );
   } else {
-    const daysSincePractice =
-      getDaysSinceRecord(latestPractice);
-
-    if (daysSincePractice > 30) {
+    if (getDaysSinceRecord(latestPractice) > 30) {
       score += 2;
       reasons.push(
         "No practice update within the last 30 days"
@@ -406,9 +373,7 @@ const calculatePriority = ({
 
   if (trend.type === "declining") {
     score += 3;
-    reasons.push(
-      "Practice score has declined"
-    );
+    reasons.push("Practice score has declined");
   }
 
   if (score >= 6) {
@@ -422,7 +387,7 @@ const calculatePriority = ({
 
   if (score >= 3) {
     return {
-      level: "Medium",
+      level: "Moderate",
       className: "medium",
       score,
       reasons,
@@ -450,10 +415,8 @@ const getSuggestedAction = ({
     return "Request an updated practice IPPT submission.";
   }
 
-  if (
-    getDaysSinceRecord(latestPractice) > 30
-  ) {
-    return "Follow up and request a new practice IPPT result.";
+  if (getDaysSinceRecord(latestPractice) > 30) {
+    return "Request a new practice IPPT result.";
   }
 
   if (
@@ -474,54 +437,61 @@ const getSuggestedAction = ({
   return `Continue monitoring and focus on ${weakestComponent.toLowerCase()}.`;
 };
 
+const getReadinessLevel = (score) => {
+  const value = Number(score || 0);
+
+  if (value >= 80) {
+    return {
+      label: "High",
+      className: "high",
+    };
+  }
+
+  if (value >= 60) {
+    return {
+      label: "Moderate",
+      className: "moderate",
+    };
+  }
+
+  return {
+    label: "Low",
+    className: "low",
+  };
+};
+
 function CommanderTraining() {
-  const navigate = useNavigate();
-
-  const [commander, setCommander] =
-    useState(null);
-
-  const [personnel, setPersonnel] =
-    useState([]);
-
-  const [
-    practiceHistory,
-    setPracticeHistory,
-  ] = useState({});
-
-  const [
-    officialHistory,
-    setOfficialHistory,
-  ] = useState({});
-
-  const [
-    selectedPersonnelID,
-    setSelectedPersonnelID,
-  ] = useState("");
-
-  const [aiBrief, setAiBrief] =
-    useState(null);
-
-  const [selectedActions, setSelectedActions] =
+  const [commander, setCommander] = useState(null);
+  const [personnel, setPersonnel] = useState([]);
+  const [practiceHistory, setPracticeHistory] =
+    useState({});
+  const [officialHistory, setOfficialHistory] =
     useState({});
 
+  const [currentStep, setCurrentStep] = useState(1);
+
+  const [aiBrief, setAiBrief] = useState(null);
+  const [selectedActions, setSelectedActions] =
+    useState({});
   const [dismissedActions, setDismissedActions] =
     useState({});
 
-  const [loading, setLoading] =
-    useState(true);
-
-  const [aiLoading, setAiLoading] =
+  const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [refreshing, setRefreshing] =
     useState(false);
 
-  const [error, setError] =
-    useState("");
+  const [error, setError] = useState("");
+  const [aiError, setAiError] = useState("");
 
-  const [aiError, setAiError] =
-    useState("");
-
-  const loadTrainingData = async () => {
+  const loadTrainingData = async ({
+    showLoading = true,
+  } = {}) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
+
       setError("");
 
       const currentUser = getCurrentUser();
@@ -533,8 +503,7 @@ function CommanderTraining() {
       }
 
       const commanderID =
-        currentUser.userID ||
-        currentUser.id;
+        currentUser.userID || currentUser.id;
 
       if (!commanderID) {
         throw new Error(
@@ -542,53 +511,33 @@ function CommanderTraining() {
         );
       }
 
-      const [
-        commanderData,
-        personnelData,
-      ] = await Promise.all([
-        getCommanderById(commanderID),
-        getPersonnelByCommanderId(
-          commanderID
-        ),
-      ]);
+      const [commanderData, personnelData] =
+        await Promise.all([
+          getCommanderById(commanderID),
+          getPersonnelByCommanderId(commanderID),
+        ]);
 
-      const resolvedCommander =
-        commanderData || currentUser;
+      setCommander(commanderData || currentUser);
+      setPersonnel(personnelData || []);
 
-      setCommander(resolvedCommander);
-      setPersonnel(personnelData);
-
-      if (personnelData.length === 0) {
+      if (!personnelData?.length) {
         setPracticeHistory({});
         setOfficialHistory({});
-        setSelectedPersonnelID("");
         return;
       }
 
-      const [
-        practiceData,
-        officialData,
-      ] = await Promise.all([
-        getPastIPPTRecordsForPersonnel(
-          personnelData
-        ),
+      const [practiceData, officialData] =
+        await Promise.all([
+          getPastIPPTRecordsForPersonnel(
+            personnelData
+          ),
+          getPastOfficialIPPTRecordsForPersonnel(
+            personnelData
+          ),
+        ]);
 
-        getPastOfficialIPPTRecordsForPersonnel(
-          personnelData
-        ),
-      ]);
-
-      setPracticeHistory(
-        practiceData || {}
-      );
-
-      setOfficialHistory(
-        officialData || {}
-      );
-
-      setSelectedPersonnelID(
-        getPersonID(personnelData[0])
-      );
+      setPracticeHistory(practiceData || {});
+      setOfficialHistory(officialData || {});
     } catch (loadError) {
       console.error(
         "Commander Training load error:",
@@ -600,14 +549,15 @@ function CommanderTraining() {
         "Unable to load Training."
       );
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     loadTrainingData();
   }, []);
-
 
   const personnelAnalysis = useMemo(() => {
     return personnel
@@ -636,33 +586,20 @@ function CommanderTraining() {
 
         const componentAnalysis =
           getComponentAnalysis(
-            latestPractice ||
-            latestOfficial,
+            latestPractice || latestOfficial,
             person
           );
 
-        const priority =
-          calculatePriority({
-            latestPractice,
-            latestOfficial,
-            trend,
-          });
-
-        const suggestedAction =
-          getSuggestedAction({
-            latestPractice,
-            latestOfficial,
-            trend,
-            weakestComponent:
-              componentAnalysis.weakestComponent,
-          });
+        const priority = calculatePriority({
+          latestPractice,
+          latestOfficial,
+          trend,
+        });
 
         return {
           ...person,
-
           userID,
-          displayName:
-            getPersonName(person),
+          displayName: getPersonName(person),
 
           practiceRecords,
           officialRecords,
@@ -673,7 +610,6 @@ function CommanderTraining() {
 
           trend,
           priority,
-          suggestedAction,
 
           strongestComponent:
             componentAnalysis.strongestComponent,
@@ -683,16 +619,22 @@ function CommanderTraining() {
 
           componentScores:
             componentAnalysis.components,
+
+          suggestedAction: getSuggestedAction({
+            latestPractice,
+            latestOfficial,
+            trend,
+            weakestComponent:
+              componentAnalysis.weakestComponent,
+          }),
         };
       })
       .sort((a, b) => {
         if (
-          b.priority.score !==
-          a.priority.score
+          b.priority.score !== a.priority.score
         ) {
           return (
-            b.priority.score -
-            a.priority.score
+            b.priority.score - a.priority.score
           );
         }
 
@@ -706,165 +648,301 @@ function CommanderTraining() {
     officialHistory,
   ]);
 
-  const highPriorityPersonnel =
-    useMemo(
-      () =>
-        personnelAnalysis.filter(
-          (person) =>
-            person.priority.level ===
-            "High"
-        ),
-      [personnelAnalysis]
+  const sectionReadinessScore = useMemo(() => {
+    if (personnelAnalysis.length === 0) {
+      return 0;
+    }
+
+    const total = personnelAnalysis.reduce(
+      (sum, person) => {
+        const score = person.latestPractice
+          ? getTotalScore(person.latestPractice)
+          : Number(person.readiness || 0);
+
+        return sum + score;
+      },
+      0
     );
 
-  const attentionPersonnel =
-    useMemo(
-      () =>
-        personnelAnalysis.filter(
-          (person) =>
-            person.priority.level ===
-            "High" ||
-            person.priority.level ===
-            "Medium"
-        ),
-      [personnelAnalysis]
+    return Math.round(
+      total / personnelAnalysis.length
     );
+  }, [personnelAnalysis]);
 
-  const improvingPersonnel =
-    useMemo(
-      () =>
-        personnelAnalysis.filter(
-          (person) =>
-            person.trend.type ===
-            "improving"
-        ),
-      [personnelAnalysis]
-    );
+  const readinessStatus = getReadinessLevel(
+    sectionReadinessScore
+  );
 
-  const decliningPersonnel =
-    useMemo(
-      () =>
-        personnelAnalysis.filter(
-          (person) =>
-            person.trend.type ===
-            "declining"
-        ),
-      [personnelAnalysis]
-    );
+  const attentionPersonnel = useMemo(
+    () =>
+      personnelAnalysis.filter(
+        (person) =>
+          person.priority.level === "High" ||
+          person.priority.level === "Moderate"
+      ),
+    [personnelAnalysis]
+  );
 
-  const outdatedPersonnel =
-    useMemo(
-      () =>
-        personnelAnalysis.filter(
-          (person) =>
-            !person.latestPractice ||
-            getDaysSinceRecord(
-              person.latestPractice
-            ) > 30
-        ),
-      [personnelAnalysis]
-    );
+  const highPriorityPersonnel = useMemo(
+    () =>
+      personnelAnalysis.filter(
+        (person) =>
+          person.priority.level === "High"
+      ),
+    [personnelAnalysis]
+  );
 
-  const selectedPersonnel =
-    useMemo(
-      () =>
-        personnelAnalysis.find(
-          (person) =>
-            person.userID ===
-            selectedPersonnelID
-        ) ||
-        personnelAnalysis[0] ||
-        null,
-      [
-        personnelAnalysis,
-        selectedPersonnelID,
-      ]
-    );
+  const decliningPersonnel = useMemo(
+    () =>
+      personnelAnalysis.filter(
+        (person) =>
+          person.trend.type === "declining"
+      ),
+    [personnelAnalysis]
+  );
 
-  const localRecommendedActions =
-    useMemo(() => {
-      const actions = [];
+  const improvingPersonnel = useMemo(
+    () =>
+      personnelAnalysis.filter(
+        (person) =>
+          person.trend.type === "improving"
+      ),
+    [personnelAnalysis]
+  );
 
+  const outdatedPersonnel = useMemo(
+    () =>
+      personnelAnalysis.filter(
+        (person) =>
+          !person.latestPractice ||
+          getDaysSinceRecord(
+            person.latestPractice
+          ) > 30
+      ),
+    [personnelAnalysis]
+  );
+
+  const failedOfficialPersonnel = useMemo(
+    () =>
+      personnelAnalysis.filter(
+        (person) =>
+          person.latestOfficial &&
+          !isPassingResult(
+            person.latestOfficial
+          )
+      ),
+    [personnelAnalysis]
+  );
+
+  const weakestStationSummary = useMemo(() => {
+    const counts = {
+      "2.4 km run": 0,
+      "Push-ups": 0,
+      "Sit-ups": 0,
+    };
+
+    personnelAnalysis.forEach((person) => {
       if (
-        highPriorityPersonnel.length > 0
+        Object.prototype.hasOwnProperty.call(
+          counts,
+          person.weakestComponent
+        )
       ) {
-        actions.push({
-          id: "high-priority",
-          title: `Review ${highPriorityPersonnel.length} high-priority personnel`,
-          description:
-            "Review their latest practice and official IPPT records.",
-          icon: AlertTriangle,
-        });
+        counts[person.weakestComponent] += 1;
       }
+    });
 
-      if (
-        decliningPersonnel.length > 0
-      ) {
-        actions.push({
-          id: "declining",
-          title: `Follow up with ${decliningPersonnel.length} declining personnel`,
-          description:
-            "Discuss the recent score decline and monitor their next attempt.",
-          icon: TrendingDown,
-        });
-      }
+    const sortedStations = Object.entries(
+      counts
+    ).sort((a, b) => b[1] - a[1]);
 
-      if (
-        outdatedPersonnel.length > 0
-      ) {
-        actions.push({
-          id: "outdated",
-          title: `Request ${outdatedPersonnel.length} practice update${outdatedPersonnel.length === 1
-            ? ""
-            : "s"
-            }`,
+    return {
+      station:
+        sortedStations[0]?.[1] > 0
+          ? sortedStations[0][0]
+          : "Insufficient data",
+
+      counts,
+    };
+  }, [personnelAnalysis]);
+
+  const weeklyTrainingPlan = useMemo(() => {
+    const weakestStation =
+      weakestStationSummary.station;
+
+    if (weakestStation === "Push-ups") {
+      return [
+        {
+          day: "Monday",
+          title: "Push-Up Technique",
           description:
-            "These personnel have no recent practice result.",
+            "Focus on controlled repetitions and correct form.",
+          icon: Dumbbell,
+        },
+        {
+          day: "Wednesday",
+          title: "Upper-Body Circuit",
+          description:
+            "Combine push-ups, planks and shoulder exercises.",
+          icon: Activity,
+        },
+        {
+          day: "Friday",
+          title: "Timed Push-Up Sets",
+          description:
+            "Practise timed sets with short recovery periods.",
           icon: Clock3,
-        });
-      }
-
-      if (
-        improvingPersonnel.length > 0
-      ) {
-        actions.push({
-          id: "improving",
-          title: `Recognise ${improvingPersonnel.length} improving personnel`,
+        },
+        {
+          day: "Weekend",
+          title: "Recovery Stretch",
           description:
-            "Acknowledge their recent progress and encourage consistency.",
-          icon: TrendingUp,
-        });
-      }
-
-      if (actions.length === 0) {
-        actions.push({
-          id: "monitor",
-          title:
-            "Continue monitoring unit progress",
-          description:
-            "No urgent follow-up action was identified.",
+            "Complete light mobility and upper-body recovery.",
           icon: CheckCircle2,
-        });
-      }
+        },
+      ];
+    }
 
-      return actions;
-    }, [
-      highPriorityPersonnel,
-      decliningPersonnel,
-      outdatedPersonnel,
-      improvingPersonnel,
-    ]);
+    if (weakestStation === "Sit-ups") {
+      return [
+        {
+          day: "Monday",
+          title: "Core Technique",
+          description:
+            "Review correct sit-up form and breathing control.",
+          icon: Target,
+        },
+        {
+          day: "Wednesday",
+          title: "Core Strength Circuit",
+          description:
+            "Combine sit-ups, planks and controlled leg raises.",
+          icon: Activity,
+        },
+        {
+          day: "Friday",
+          title: "Timed Sit-Up Sets",
+          description:
+            "Practise timed repetitions with short recovery periods.",
+          icon: Clock3,
+        },
+        {
+          day: "Weekend",
+          title: "Recovery Stretch",
+          description:
+            "Complete light mobility and core recovery.",
+          icon: CheckCircle2,
+        },
+      ];
+    }
 
-  const activeRecommendedActions =
-    useMemo(() => {
-      return localRecommendedActions.filter(
+    return [
+      {
+        day: "Monday",
+        title: "Interval Run",
+        description:
+          "Use short, controlled intervals to improve running pace.",
+        icon: TrendingUp,
+      },
+      {
+        day: "Wednesday",
+        title: "Aerobic Endurance",
+        description:
+          "Complete a steady-paced endurance session.",
+        icon: Activity,
+      },
+      {
+        day: "Friday",
+        title: "2.4 km Pace Training",
+        description:
+          "Practise maintaining the required IPPT running pace.",
+        icon: Clock3,
+      },
+      {
+        day: "Weekend",
+        title: "Recovery Stretch",
+        description:
+          "Complete light recovery, mobility and stretching.",
+        icon: CheckCircle2,
+      },
+    ];
+  }, [weakestStationSummary.station]);
+
+  const localRecommendedActions = useMemo(() => {
+    const actions = [];
+
+    if (highPriorityPersonnel.length > 0) {
+      actions.push({
+        id: "high-priority",
+        title: `Review ${highPriorityPersonnel.length} high-priority personnel`,
+        description:
+          "Check their latest practice and official IPPT results.",
+        icon: AlertTriangle,
+      });
+    }
+
+    if (decliningPersonnel.length > 0) {
+      actions.push({
+        id: "declining",
+        title: `Follow up with ${decliningPersonnel.length} declining personnel`,
+        description:
+          "Discuss their score decline and monitor their next attempt.",
+        icon: TrendingDown,
+      });
+    }
+
+    if (outdatedPersonnel.length > 0) {
+      actions.push({
+        id: "outdated",
+        title: `Request ${outdatedPersonnel.length} practice update${outdatedPersonnel.length === 1
+          ? ""
+          : "s"
+          }`,
+        description:
+          "These personnel do not have a recent practice result.",
+        icon: Clock3,
+      });
+    }
+
+    if (improvingPersonnel.length > 0) {
+      actions.push({
+        id: "improving",
+        title: `Recognise ${improvingPersonnel.length} improving personnel`,
+        description:
+          "Acknowledge their progress and encourage consistency.",
+        icon: TrendingUp,
+      });
+    }
+
+    if (actions.length === 0) {
+      actions.push({
+        id: "monitor",
+        title: "Continue monitoring section progress",
+        description:
+          "No urgent follow-up action is currently required.",
+        icon: CheckCircle2,
+      });
+    }
+
+    return actions;
+  }, [
+    highPriorityPersonnel,
+    decliningPersonnel,
+    outdatedPersonnel,
+    improvingPersonnel,
+  ]);
+
+  const activeRecommendedActions = useMemo(
+    () =>
+      localRecommendedActions.filter(
         (action) =>
           !dismissedActions[action.id]
-      );
-    }, [
+      ),
+    [
       localRecommendedActions,
       dismissedActions,
-    ]);
+    ]
+  );
 
   const selectedActionCount =
     activeRecommendedActions.filter(
@@ -875,8 +953,7 @@ function CommanderTraining() {
   const toggleAction = (actionID) => {
     setSelectedActions((current) => ({
       ...current,
-      [actionID]:
-        !current[actionID],
+      [actionID]: !current[actionID],
     }));
   };
 
@@ -914,12 +991,19 @@ function CommanderTraining() {
     });
   };
 
-  const refreshRecommendedActions =
-    async () => {
+  const refreshRecommendedActions = async () => {
+    try {
+      setRefreshing(true);
       setSelectedActions({});
       setDismissedActions({});
-      await loadTrainingData();
-    };
+
+      await loadTrainingData({
+        showLoading: false,
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const generateBrief = async () => {
     try {
@@ -927,109 +1011,82 @@ function CommanderTraining() {
       setAiError("");
 
       const aiPersonnelData =
-        personnelAnalysis.map(
-          (person) => ({
-            name: person.displayName,
-            rank:
-              person.rank || "N/A",
+        personnelAnalysis.map((person) => ({
+          name: person.displayName,
+          rank: person.rank || "N/A",
 
-            latestPractice:
-              person.latestPractice
-                ? {
-                  totalScore:
-                    getTotalScore(
-                      person.latestPractice
-                    ),
+          latestPractice:
+            person.latestPractice
+              ? {
+                totalScore: getTotalScore(
+                  person.latestPractice
+                ),
+                result: getResult(
+                  person.latestPractice
+                ),
+                pushups: getPushups(
+                  person.latestPractice
+                ),
+                situps: getSitups(
+                  person.latestPractice
+                ),
+                runtime: getRuntime(
+                  person.latestPractice
+                ),
+              }
+              : null,
 
-                  result:
-                    getResult(
-                      person.latestPractice
-                    ),
+          previousPractice:
+            person.previousPractice
+              ? {
+                totalScore: getTotalScore(
+                  person.previousPractice
+                ),
+                result: getResult(
+                  person.previousPractice
+                ),
+              }
+              : null,
 
-                  pushups:
-                    getPushups(
-                      person.latestPractice
-                    ),
+          latestOfficial:
+            person.latestOfficial
+              ? {
+                totalScore: getTotalScore(
+                  person.latestOfficial
+                ),
+                result: getResult(
+                  person.latestOfficial
+                ),
+                pushups: getPushups(
+                  person.latestOfficial
+                ),
+                situps: getSitups(
+                  person.latestOfficial
+                ),
+                runtime: getRuntime(
+                  person.latestOfficial
+                ),
+              }
+              : null,
 
-                  situps:
-                    getSitups(
-                      person.latestPractice
-                    ),
+          trend: person.trend.label,
+          scoreChange: person.trend.difference,
 
-                  runtime:
-                    getRuntime(
-                      person.latestPractice
-                    ),
-                }
-                : null,
+          strongestComponent:
+            person.strongestComponent,
 
-            previousPractice:
-              person.previousPractice
-                ? {
-                  totalScore:
-                    getTotalScore(
-                      person.previousPractice
-                    ),
+          weakestComponent:
+            person.weakestComponent,
 
-                  result:
-                    getResult(
-                      person.previousPractice
-                    ),
-                }
-                : null,
+          priorityLevel:
+            person.priority.level,
 
-            latestOfficial:
-              person.latestOfficial
-                ? {
-                  totalScore:
-                    getTotalScore(
-                      person.latestOfficial
-                    ),
+          priorityReasons:
+            person.priority.reasons,
 
-                  result:
-                    getResult(
-                      person.latestOfficial
-                    ),
-
-                  pushups:
-                    getPushups(
-                      person.latestOfficial
-                    ),
-
-                  situps:
-                    getSitups(
-                      person.latestOfficial
-                    ),
-
-                  runtime:
-                    getRuntime(
-                      person.latestOfficial
-                    ),
-                }
-                : null,
-
-            trend:
-              person.trend.label,
-
-            scoreChange:
-              person.trend.difference,
-
-            strongestComponent:
-              person.strongestComponent,
-
-            weakestComponent:
-              person.weakestComponent,
-
-            priorityLevel:
-              person.priority.level,
-
-            priorityReasons:
-              person.priority.reasons,
-
-            suggestedAction:
-              person.suggestedAction,
-          })
-        );
+          suggestedAction:
+            person.suggestedAction,
+        }));
 
       const result =
         await generateCommanderTrainingBrief(
@@ -1052,6 +1109,22 @@ function CommanderTraining() {
     }
   };
 
+  const goToNextStep = () => {
+    setCurrentStep((current) =>
+      Math.min(current + 1, TOTAL_STEPS)
+    );
+  };
+
+  const goToPreviousStep = () => {
+    setCurrentStep((current) =>
+      Math.max(current - 1, 1)
+    );
+  };
+
+  const goToStep = (stepNumber) => {
+    setCurrentStep(stepNumber);
+  };
+
   if (loading) {
     return (
       <div className="commander-page">
@@ -1063,15 +1136,15 @@ function CommanderTraining() {
 
           <div className="commander-loading-content">
             <div className="commander-loading-circle" />
-
-            <p>
-              Loading Training...
-            </p>
+            <p>Loading Training...</p>
           </div>
         </div>
       </div>
     );
   }
+
+  const currentStepInformation =
+    STEP_INFORMATION[currentStep - 1];
 
   return (
     <div className="commander-page">
@@ -1081,30 +1154,27 @@ function CommanderTraining() {
           <span>●●●</span>
         </div>
 
-        <header className="commander-header">
+        <header className="commander-header training-wizard-header">
           <div>
             <h1 className="commander-header-title">
               Training
             </h1>
 
+      
           </div>
 
-          <div className="training-header-actions">
+          <div className="commander-profile-mini">
+            <UserRound size={15} />
 
-
-            <div className="commander-profile-mini">
-              <UserRound size={15} />
-
-              <span>
-                {commander
-                  ? getPersonName(commander)
-                  : "Commander"}
-              </span>
-            </div>
+            <span>
+              {commander
+                ? getPersonName(commander)
+                : "Commander"}
+            </span>
           </div>
         </header>
 
-        <main className="commander-content training-content">
+        <main className="commander-content training-wizard-content">
           {error && (
             <div className="training-error-box">
               <AlertTriangle size={18} />
@@ -1112,176 +1182,201 @@ function CommanderTraining() {
             </div>
           )}
 
-          {/* SUMMARY */}
+          <section className="training-wizard-progress">
+            <div className="training-wizard-progress-track">
+              {STEP_INFORMATION.map(
+                (step, index) => (
+                  <React.Fragment key={step.number}>
+                    <button
+                      type="button"
+                      className={`training-wizard-step-dot ${currentStep === step.number
+                        ? "active"
+                        : ""
+                        } ${currentStep > step.number
+                          ? "completed"
+                          : ""
+                        }`}
+                      onClick={() =>
+                        goToStep(step.number)
+                      }
+                      aria-label={`Go to step ${step.number}: ${step.title}`}
+                    >
+                      {currentStep > step.number ? (
+                        <Check size={14} />
+                      ) : (
+                        step.number
+                      )}
+                    </button>
 
-          <section className="training-summary-grid">
-            <article className="training-summary-card">
-              <AlertTriangle
-                size={20}
-                className="training-summary-danger"
-              />
-
-              <strong>
-                {
-                  highPriorityPersonnel.length
-                }
-              </strong>
-
-              <span>High Priority</span>
-            </article>
-
-            <article className="training-summary-card">
-              <TrendingUp
-                size={20}
-                className="training-summary-success"
-              />
-
-              <strong>
-                {
-                  improvingPersonnel.length
-                }
-              </strong>
-
-              <span>Improving</span>
-            </article>
-
-            <article className="training-summary-card">
-              <TrendingDown
-                size={20}
-                className="training-summary-warning"
-              />
-
-              <strong>
-                {
-                  decliningPersonnel.length
-                }
-              </strong>
-
-              <span>Declining</span>
-            </article>
-
-            <article className="training-summary-card">
-              <Clock3
-                size={20}
-                className="training-summary-info"
-              />
-
-              <strong>
-                {
-                  outdatedPersonnel.length
-                }
-              </strong>
-
-              <span>No Update</span>
-            </article>
-          </section>
-
-          {/* REQUIRES ATTENTION */}
-
-          <section className="commander-card">
-            <div className="training-section-heading">
-              <div>
-                <p className="training-eyebrow">
-                  Priority monitoring
-                </p>
-
-                <h2 className="commander-card-title training-title-row">
-                  <Target size={18} />
-                  Requires Attention
-                </h2>
-              </div>
-
-              <span className="training-count-badge">
-                {
-                  attentionPersonnel.length
-                }
-              </span>
+                    {index <
+                      STEP_INFORMATION.length -
+                      1 && (
+                        <span
+                          className={`training-wizard-line ${currentStep >
+                            step.number
+                            ? "completed"
+                            : ""
+                            }`}
+                        />
+                      )}
+                  </React.Fragment>
+                )
+              )}
             </div>
 
-            {attentionPersonnel.length ===
-              0 ? (
-              <div className="training-empty-state">
-                <CheckCircle2 size={34} />
+            <div className="training-wizard-step-labels">
+              {STEP_INFORMATION.map((step) => (
+                <span
+                  key={step.number}
+                  className={
+                    currentStep === step.number
+                      ? "active"
+                      : ""
+                  }
+                >
+                  {step.shortLabel}
+                </span>
+              ))}
+            </div>
+          </section>
 
-                <strong>
-                  No urgent concerns
-                </strong>
+          <section className="training-wizard-intro">
+            <span>
+              Step {currentStep} of {TOTAL_STEPS}
+            </span>
 
-                <p>
-                  Current records do not
-                  identify high- or
-                  medium-priority personnel.
-                </p>
+            <h2>{currentStepInformation.title}</h2>
+
+            <p>
+              {currentStepInformation.description}
+            </p>
+          </section>
+
+          {/* STEP 1 — SECTION READINESS */}
+
+          {currentStep === 1 && (
+            <section className="training-wizard-page">
+              <div className="training-readiness-overview">
+                <div
+                  className={`training-readiness-ring ${readinessStatus.className}`}
+                  style={{
+                    background: `radial-gradient(
+                      circle,
+                      #ffffff 61%,
+                      transparent 62%
+                    ),
+                    conic-gradient(
+                      var(--readiness-colour)
+                      ${sectionReadinessScore}%,
+                      #e3eaf3 0
+                    )`,
+                  }}
+                >
+                  <div>
+                    <strong>
+                      {sectionReadinessScore}%
+                    </strong>
+
+                    <span>
+                      {readinessStatus.label}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="training-readiness-summary">
+                  <span>Section Readiness</span>
+
+                  <strong>
+                    {readinessStatus.label}
+                  </strong>
+
+                  <p>
+                    Based on the latest practice
+                    IPPT score submitted by each
+                    personnel.
+                  </p>
+                </div>
               </div>
-            ) : (
-              <div className="training-attention-list">
-                {attentionPersonnel.map(
-                  (person) => (
+
+              <div className="training-readiness-legend">
+                <span>
+                  <i className="high" />
+                  High
+                </span>
+
+                <span>
+                  <i className="moderate" />
+                  Moderate
+                </span>
+
+                <span>
+                  <i className="low" />
+                  Low
+                </span>
+              </div>
+
+              <div className="training-simple-summary">
+                <div>
+                  <span>Total Personnel</span>
+                  <strong>
+                    {personnelAnalysis.length}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Requires Attention</span>
+                  <strong>
+                    {attentionPersonnel.length}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="training-section-list">
+                <div className="training-list-heading">
+                  <h3>Personnel Overview</h3>
+                  
+                </div>
+
+                {personnelAnalysis.length === 0 ? (
+                  <div className="training-empty-state">
+                    <Users size={30} />
+                    <strong>
+                      No assigned personnel
+                    </strong>
+                  </div>
+                ) : (
+                  personnelAnalysis.map((person) => (
                     <article
-                      className="training-attention-card"
+                      className="training-personnel-row"
                       key={person.userID}
                     >
-                      <div className="training-person-header">
-                        <div className="training-person-main">
-                          <div className="training-person-avatar">
-                            {person.photoURL ? (
-                              <img
-                                src={
-                                  person.photoURL
-                                }
-                                alt={`${person.displayName} profile`}
-                              />
-                            ) : (
-                              <UserRound
-                                size={21}
-                              />
-                            )}
-                          </div>
-
-                          <div>
-                            <h3>
-                              {
-                                person.displayName
-                              }
-                            </h3>
-
-                            <p>
-                              {person.rank ||
-                                "Personnel"}
-                            </p>
-                          </div>
+                      <div className="training-personnel-identity">
+                        <div className="training-personnel-avatar">
+                          {person.photoURL ? (
+                            <img
+                              src={person.photoURL}
+                              alt={`${person.displayName} profile`}
+                            />
+                          ) : (
+                            <UserRound size={21} />
+                          )}
                         </div>
 
-                        <span
-                          className={`training-priority-badge ${person.priority.className}`}
-                        >
-                          {
-                            person.priority
-                              .level
-                          }
-                        </span>
+                        <div>
+                          <h3>
+                            {person.displayName}
+                          </h3>
+
+                          <p>
+                            {person.rank ||
+                              "Personnel"}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="training-person-stats">
+                      <div className="training-personnel-values">
                         <div>
-                          <span>
-                            Official
-                          </span>
-
-                          <strong>
-                            {person.latestOfficial
-                              ? getResult(
-                                person.latestOfficial
-                              )
-                              : "N/A"}
-                          </strong>
-                        </div>
-
-                        <div>
-                          <span>
-                            Practice
-                          </span>
-
+                          <span>Practice</span>
                           <strong>
                             {person.latestPractice
                               ? getTotalScore(
@@ -1292,714 +1387,590 @@ function CommanderTraining() {
                         </div>
 
                         <div>
-                          <span>
-                            Trend
-                          </span>
+                          <span>Official</span>
+                          <strong>
+                            {person.latestOfficial
+                              ? getResult(
+                                person.latestOfficial
+                              )
+                              : "N/A"}
+                          </strong>
+                        </div>
 
+                        <div>
+                          <span>Trend</span>
                           <strong
                             className={`training-trend-${person.trend.type}`}
                           >
-                            {
-                              person.trend
-                                .label
-                            }
+                            {person.trend.label}
                           </strong>
                         </div>
                       </div>
 
-                      <div className="training-concern-section">
-                        <div className="training-concern-heading">
-                          <span>Main concern</span>
-
-                          <strong>
-                            {person.weakestComponent}
-                          </strong>
-                        </div>
-
-                        <div className="training-concern-reasons">
-                          {person.priority.reasons
-                            .slice(0, 3)
-                            .map((reason) => (
-                              <div
-                                className="training-concern-reason"
-                                key={reason}
-                              >
-                                <span className="training-reason-bullet">
-                                  •
-                                </span>
-
-                                <p>{reason}</p>
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-
-                      <div className="training-follow-up">
-                        <Sparkles
-                          size={17}
-                        />
-
-                        <div>
-                          <strong>
-                            Suggested
-                            Action
-                          </strong>
-
-                          <p>
-                            {
-                              person.suggestedAction
-                            }
-                          </p>
-                        </div>
+                      <div className="training-personnel-weakness">
+                        <span>Lowest station</span>
+                        <strong>
+                          {person.weakestComponent}
+                        </strong>
                       </div>
                     </article>
+                  ))
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* STEP 2 — PRIORITY PERSONNEL */}
+
+          {currentStep === 2 && (
+            <section className="training-wizard-page">
+              <div className="training-priority-method">
+                <Target size={22} />
+
+                <div>
+                  <strong>
+                    Automatic Priority Ranking
+                  </strong>
+
+                  <p>
+                    Personnel are prioritised using
+                    failed official results,
+                    declining practice trends and
+                    low readiness scores.
+                  </p>
+                </div>
+              </div>
+
+              <div className="training-priority-summary">
+                <div>
+                  <AlertTriangle size={18} />
+                  <span>Failed Official</span>
+                  <strong>
+                    {failedOfficialPersonnel.length}
+                  </strong>
+                </div>
+
+                <div>
+                  <TrendingDown size={18} />
+                  <span>Declining</span>
+                  <strong>
+                    {decliningPersonnel.length}
+                  </strong>
+                </div>
+
+                <div>
+                  <Target size={18} />
+                  <span>High Priority</span>
+                  <strong>
+                    {highPriorityPersonnel.length}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="training-section-list">
+                <div className="training-list-heading">
+                  <h3>Priority Ranking</h3>
+                  <span>
+                    Highest priority first
+                  </span>
+                </div>
+
+                {attentionPersonnel.length === 0 ? (
+                  <div className="training-empty-state">
+                    <CheckCircle2 size={34} />
+
+                    <strong>
+                      No urgent concerns
+                    </strong>
+
+                    <p>
+                      No high- or moderate-priority
+                      personnel were identified.
+                    </p>
+                  </div>
+                ) : (
+                  attentionPersonnel.map(
+                    (person, index) => (
+                      <article
+                        className="training-priority-row"
+                        key={person.userID}
+                      >
+                        <div className="training-priority-rank">
+                          {index + 1}
+                        </div>
+
+                        <div className="training-priority-main">
+                          <div className="training-priority-top">
+                            <div>
+                              <h3>
+                                {person.displayName}
+                              </h3>
+
+                              <p>
+                                {person.rank ||
+                                  "Personnel"}
+                              </p>
+                            </div>
+
+                            <span
+                              className={`training-priority-badge ${person.priority.className}`}
+                            >
+                              {person.priority.level}
+                            </span>
+                          </div>
+
+                          <div className="training-priority-metrics">
+                            <span>
+                              Readiness{" "}
+                              <strong>
+                                {person.latestPractice
+                                  ? getTotalScore(
+                                    person.latestPractice
+                                  )
+                                  : Number(
+                                    person.readiness ||
+                                    0
+                                  )}
+                                %
+                              </strong>
+                            </span>
+
+                            <span>
+                              Official{" "}
+                              <strong>
+                                {person.latestOfficial
+                                  ? getResult(
+                                    person.latestOfficial
+                                  )
+                                  : "N/A"}
+                              </strong>
+                            </span>
+
+                            <span>
+                              Trend{" "}
+                              <strong
+                                className={`training-trend-${person.trend.type}`}
+                              >
+                                {person.trend.label}
+                              </strong>
+                            </span>
+                          </div>
+
+                          <div className="training-priority-concern">
+                            <span>Main concern</span>
+
+                            <strong>
+                              {person.weakestComponent}
+                            </strong>
+                          </div>
+
+                          <ul className="training-priority-reasons">
+                            {person.priority.reasons
+                              .slice(0, 3)
+                              .map((reason) => (
+                                <li key={reason}>
+                                  {reason}
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
+                      </article>
+                    )
                   )
                 )}
               </div>
-            )}
-          </section>
+            </section>
+          )}
 
-          {/* AI COMMANDER BRIEF */}
+          {/* STEP 3 — AI DECISION BRIEF */}
 
-          <section className="commander-card">
-            <div className="training-section-heading">
-              <div>
-                <p className="training-eyebrow">
-                  AI decision support
-                </p>
+          {currentStep === 3 && (
+            <section className="training-wizard-page">
+              {aiError && (
+                <p className="ai-error">{aiError}</p>
+              )}
 
-                <h2 className="commander-card-title training-title-row">
-                  <Brain size={18} />
-                  Commander Brief
-                </h2>
-              </div>
-            </div>
-
-            {aiError && (
-              <p className="ai-error">
-                {aiError}
-              </p>
-            )}
-
-            {!aiBrief ? (
-              <div className="training-ai-empty">
-                <Sparkles size={31} />
-
-                <p>
-                  Generate a section-level
-                  summary based on practice and official IPPT records
-                </p>
-              </div>
-            ) : (
-              <div className="training-ai-result">
-                <div className="training-ai-label">
-                  <Sparkles size={15} />
-                  AI analysis
-                </div>
-
-                <p className="training-ai-summary">
-                  {aiBrief.summary}
-                </p>
-
-                <div className="training-ai-insight concern">
+              {!aiBrief ? (
+                <div className="training-ai-start">
                   <span>
-                    Main concern
+                    <Brain size={34} />
                   </span>
 
-                  <p>
-                    {
-                      aiBrief.mainConcern
-                    }
-                  </p>
-                </div>
-
-                <div className="training-ai-insight positive">
-                  <span>
-                    Positive observation
-                  </span>
+                  <h3>
+                    Generate Commander Brief
+                  </h3>
 
                   <p>
-                    {
-                      aiBrief.positiveObservation
-                    }
+                    Gemini will analyse the latest
+                    practice and official IPPT data
+                    and provide a concise
+                    section-level summary.
                   </p>
-                </div>
 
-                {aiBrief.actions?.length >
-                  0 && (
-                    <div className="training-ai-actions">
-                      <strong>
-                        AI Recommended
-                        Actions
-                      </strong>
+                  <button
+                    type="button"
+                    className="training-primary-button"
+                    onClick={generateBrief}
+                    disabled={
+                      aiLoading ||
+                      personnelAnalysis.length === 0
+                    }
+                  >
+                    {aiLoading ? (
+                      <>
+                        <Loader2
+                          size={18}
+                          className="training-spin"
+                        />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={18} />
+                        Generate AI Brief
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="training-ai-brief">
+                  <div className="training-ai-section">
+                    <span className="training-ai-section-icon summary">
+                      <Brain size={18} />
+                    </span>
+
+                    <div>
+                      <h3>Section Summary</h3>
+                      <p>{aiBrief.summary}</p>
+                    </div>
+                  </div>
+
+                  <div className="training-ai-section positive">
+                    <span className="training-ai-section-icon">
+                      <TrendingUp size={18} />
+                    </span>
+
+                    <div>
+                      <h3>
+                        Positive Observation
+                      </h3>
+
+                      <p>
+                        {aiBrief.positiveObservation}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="training-ai-section concern">
+                    <span className="training-ai-section-icon">
+                      <AlertTriangle size={18} />
+                    </span>
+
+                    <div>
+                      <h3>Main Concern</h3>
+                      <p>{aiBrief.mainConcern}</p>
+                    </div>
+                  </div>
+
+                  {aiBrief.actions?.length > 0 && (
+                    <div className="training-ai-recommendations">
+                      <h3>AI Recommendations</h3>
 
                       {aiBrief.actions.map(
                         (action, index) => (
                           <div
+                            className="training-ai-recommendation-row"
                             key={`${action.title}-${index}`}
-                            className="training-ai-action-row"
                           >
-                            <span>
-                              {index + 1}
-                            </span>
+                            <CheckCircle2 size={18} />
 
                             <div>
                               <strong>
-                                {
-                                  action.title
-                                }
+                                {action.title}
                               </strong>
 
-                              <p>
-                                {
-                                  action.description
-                                }
-                              </p>
+                              {action.description && (
+                                <p>
+                                  {action.description}
+                                </p>
+                              )}
                             </div>
                           </div>
                         )
                       )}
                     </div>
                   )}
-              </div>
-            )}
 
-            <button
-              type="button"
-              className="training-ai-button"
-              onClick={generateBrief}
-              disabled={
-                aiLoading ||
-                personnelAnalysis.length === 0
-              }
-            >
-              {aiLoading ? (
-                <>
-                  <Loader2
-                    size={17}
-                    className="training-spin"
-                  />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  
-
-                  {aiBrief
-                    ? "Regenerate Brief"
-                    : "Generate AI Brief"}
-                </>
+                  <button
+                    type="button"
+                    className="training-secondary-button"
+                    onClick={generateBrief}
+                    disabled={aiLoading}
+                  >
+                    {aiLoading ? (
+                      <>
+                        <Loader2
+                          size={17}
+                          className="training-spin"
+                        />
+                        Regenerating...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={17} />
+                        Regenerate Brief
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
-            </button>
-          </section>
+            </section>
+          )}
 
-          {/* RECOMMENDED ACTIONS */}
+          {/* STEP 4 — TRAINING PLAN */}
 
-          <section className="commander-card">
-            <div className="training-section-heading training-actions-heading">
-              <div>
-                <p className="training-eyebrow">
-                  Commander follow-up
-                </p>
+          {currentStep === 4 && (
+            <section className="training-wizard-page">
+              <div className="training-plan-focus">
+                <span>
+                  <Target size={24} />
+                </span>
 
-                <h2 className="commander-card-title training-title-row">
-                  <ClipboardCheck size={18} />
-                  Recommended Actions
-                </h2>
+                <div>
+                  <p>This Week&apos;s Focus</p>
+
+                  <h3>
+                    {weakestStationSummary.station}
+                  </h3>
+
+                  <small>
+                    Identified as the most common
+                    weakest IPPT component in the
+                    section.
+                  </small>
+                </div>
               </div>
 
-              <button
-                type="button"
-                className="training-actions-refresh"
-                onClick={
-                  refreshRecommendedActions
-                }
-                aria-label="Refresh recommended actions"
-                title="Refresh recommended actions"
-              >
-                <RefreshCw size={17} />
-              </button>
-            </div>
+              <div className="training-weekly-plan">
+                {weeklyTrainingPlan.map(
+                  (session, index) => {
+                    const SessionIcon =
+                      session.icon;
 
-            {activeRecommendedActions.length >
-              0 ? (
-              <>
-                <div className="training-checklist">
-                  {activeRecommendedActions.map(
-                    (action) => {
-                      const ActionIcon =
-                        action.icon;
+                    return (
+                      <article
+                        className="training-session-row"
+                        key={session.day}
+                      >
+                        <div className="training-session-marker">
+                          <span>{index + 1}</span>
 
-                      const selected =
-                        Boolean(
-                          selectedActions[
-                          action.id
-                          ]
-                        );
+                          {index <
+                            weeklyTrainingPlan.length -
+                            1 && <i />}
+                        </div>
 
-                      return (
-                        <button
-                          type="button"
-                          key={action.id}
-                          className={`training-checklist-item ${selected
-                              ? "completed"
-                              : ""
-                            }`}
-                          onClick={() =>
-                            toggleAction(
-                              action.id
-                            )
-                          }
-                          aria-pressed={
-                            selected
-                          }
-                        >
-                          <span className="training-check-box">
-                            {selected && (
-                              <Check size={15} />
-                            )}
-                          </span>
+                        <div className="training-session-content">
+                          <div className="training-session-day">
+                            {session.day}
+                          </div>
 
-                          <span className="training-action-icon">
-                            <ActionIcon
-                              size={17}
-                            />
-                          </span>
+                          <div className="training-session-heading">
+                            <SessionIcon size={19} />
 
-                          <span className="training-action-copy">
-                            <strong>
-                              {action.title}
-                            </strong>
+                            <h3>
+                              {session.title}
+                            </h3>
+                          </div>
 
-                            <small>
-                              {
-                                action.description
-                              }
-                            </small>
-                          </span>
-                        </button>
-                      );
-                    }
+                          <p>
+                            {session.description}
+                          </p>
+                        </div>
+                      </article>
+                    );
+                  }
+                )}
+              </div>
+
+              <div className="training-priority-order">
+                <h3>Training Priority</h3>
+
+                {Object.entries(
+                  weakestStationSummary.counts
+                )
+                  .sort((a, b) => b[1] - a[1])
+                  .map(
+                    ([station, count], index) => (
+                      <div key={station}>
+                        <span>
+                          {index === 0
+                            ? "🥇"
+                            : index === 1
+                              ? "🥈"
+                              : "🥉"}
+                        </span>
+
+                        <p>{station}</p>
+
+                        <strong>
+                          {count} personnel
+                        </strong>
+                      </div>
+                    )
                   )}
+              </div>
+            </section>
+          )}
+
+          {/* STEP 5 — COMMANDER FOLLOW-UP */}
+
+          {currentStep === 5 && (
+            <section className="training-wizard-page">
+              <div className="training-follow-up-heading">
+                <div>
+                  <ClipboardCheck size={23} />
+
+                  <div>
+                    <h3>Recommended Actions</h3>
+
+                    <p>
+                      Select completed actions and
+                      confirm them using the button
+                      below.
+                    </p>
+                  </div>
                 </div>
 
                 <button
                   type="button"
-                  className="training-complete-selected-button"
-                  onClick={
-                    completeSelectedActions
-                  }
-                  disabled={
-                    selectedActionCount === 0
-                  }
+                  className="training-refresh-icon-button"
+                  onClick={refreshRecommendedActions}
+                  disabled={refreshing}
+                  aria-label="Refresh recommended actions"
+                  title="Refresh recommended actions"
                 >
-                  <CheckCircle2 size={17} />
-
-                  {selectedActionCount > 0
-                    ? `Complete Selected (${selectedActionCount})`
-                    : "Select an Action to Complete"}
-                </button>
-              </>
-            ) : (
-              <div className="training-actions-complete">
-                <span className="training-complete-icon">
-                  <CheckCircle2 size={30} />
-                </span>
-
-                <strong>
-                  You&apos;re all set!
-                </strong>
-
-                <p>
-                  You have completed all the
-                  recommended actions for today.
-                </p>
-
-                
-              </div>
-            )}
-          </section>
-
-          {/* PROGRESS REVIEW */}
-
-          <section className="commander-card">
-            <div className="training-section-heading">
-              <div>
-                <p className="training-eyebrow">
-                  Individual monitoring
-                </p>
-
-                <h2 className="commander-card-title training-title-row">
-                  <Activity size={18} />
-                  Progress Review
-                </h2>
-              </div>
-            </div>
-
-            {personnelAnalysis.length ===
-              0 ? (
-              <div className="training-empty-state">
-                <Users size={32} />
-
-                <strong>
-                  No assigned personnel
-                </strong>
-              </div>
-            ) : (
-              <>
-                <label className="training-select-label">
-                  Select personnel
-                </label>
-
-                <div className="training-select-wrap">
-                  <select
-                    value={
-                      selectedPersonnel?.userID ||
-                      ""
+                  <RefreshCw
+                    size={18}
+                    className={
+                      refreshing
+                        ? "training-spin"
+                        : ""
                     }
-                    onChange={(event) =>
-                      setSelectedPersonnelID(
-                        event.target.value
-                      )
+                  />
+                </button>
+              </div>
+
+              {activeRecommendedActions.length >
+                0 ? (
+                <>
+                  <div className="training-checklist">
+                    {activeRecommendedActions.map(
+                      (action) => {
+                        const ActionIcon =
+                          action.icon;
+
+                        const selected = Boolean(
+                          selectedActions[action.id]
+                        );
+
+                        return (
+                          <button
+                            type="button"
+                            className={`training-checklist-item ${selected
+                              ? "completed"
+                              : ""
+                              }`}
+                            key={action.id}
+                            onClick={() =>
+                              toggleAction(action.id)
+                            }
+                            aria-pressed={selected}
+                          >
+                            <span className="training-check-box">
+                              {selected && (
+                                <Check size={15} />
+                              )}
+                            </span>
+
+                            <span className="training-action-icon">
+                              <ActionIcon size={18} />
+                            </span>
+
+                            <span className="training-action-copy">
+                              <strong>
+                                {action.title}
+                              </strong>
+
+                              <small>
+                                {action.description}
+                              </small>
+                            </span>
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="training-complete-selected-button"
+                    onClick={completeSelectedActions}
+                    disabled={
+                      selectedActionCount === 0
                     }
                   >
-                    {personnelAnalysis.map(
-                      (person) => (
-                        <option
-                          key={
-                            person.userID
-                          }
-                          value={
-                            person.userID
-                          }
-                        >
-                          {
-                            person.displayName
-                          }
-                        </option>
-                      )
-                    )}
-                  </select>
+                    <CheckCircle2 size={18} />
 
-                  <ChevronDown
-                    size={16}
-                  />
+                    {selectedActionCount > 0
+                      ? `Complete Selected (${selectedActionCount})`
+                      : "Select an Action to Complete"}
+                  </button>
+                </>
+              ) : (
+                <div className="training-actions-complete">
+                  <span className="training-complete-icon">
+                    <CheckCircle2 size={32} />
+                  </span>
+
+                  <strong>
+                    You&apos;re all set!
+                  </strong>
+
+                  <p>
+                    All recommended follow-up
+                    actions have been completed.
+                  </p>
+
+                  
                 </div>
-
-                {selectedPersonnel && (
-                  <div className="training-review">
-                    <div className="training-review-person">
-                      <div className="training-person-main">
-                        <div className="training-review-avatar">
-                          {selectedPersonnel.photoURL ? (
-                            <img
-                              src={
-                                selectedPersonnel.photoURL
-                              }
-                              alt={`${selectedPersonnel.displayName} profile`}
-                            />
-                          ) : (
-                            <UserRound
-                              size={23}
-                            />
-                          )}
-                        </div>
-
-                        <div>
-                          <h3>
-                            {
-                              selectedPersonnel.displayName
-                            }
-                          </h3>
-
-                          <p>
-                            {selectedPersonnel.rank ||
-                              "Personnel"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <span
-                        className={`training-priority-badge ${selectedPersonnel.priority.className}`}
-                      >
-                        {
-                          selectedPersonnel
-                            .priority.level
-                        }
-                      </span>
-                    </div>
-
-                    <div className="training-review-grid">
-                      <div>
-                        <span>
-                          Official
-                        </span>
-
-                        <strong>
-                          {selectedPersonnel.latestOfficial
-                            ? getResult(
-                              selectedPersonnel.latestOfficial
-                            )
-                            : "N/A"}
-                        </strong>
-
-                        <small>
-                          {selectedPersonnel.latestOfficial
-                            ? `${getTotalScore(
-                              selectedPersonnel.latestOfficial
-                            )} points`
-                            : "No record"}
-                        </small>
-                      </div>
-
-                      <div>
-                        <span>
-                          Practice
-                        </span>
-
-                        <strong>
-                          {selectedPersonnel.latestPractice
-                            ? getTotalScore(
-                              selectedPersonnel.latestPractice
-                            )
-                            : "N/A"}
-                        </strong>
-
-                        <small>
-                          {selectedPersonnel.latestPractice
-                            ? formatRecordDate(
-                              selectedPersonnel.latestPractice
-                            )
-                            : "No record"}
-                        </small>
-                      </div>
-
-                      <div>
-                        <span>
-                          Score change
-                        </span>
-
-                        <strong
-                          className={`training-trend-${selectedPersonnel.trend.type}`}
-                        >
-                          {selectedPersonnel.previousPractice
-                            ? `${selectedPersonnel
-                              .trend
-                              .difference >
-                              0
-                              ? "+"
-                              : ""
-                            }${selectedPersonnel
-                              .trend
-                              .difference
-                            }`
-                            : "N/A"}
-                        </strong>
-
-                        <small>
-                          {
-                            selectedPersonnel
-                              .trend.label
-                          }
-                        </small>
-                      </div>
-
-                      <div>
-                        <span>
-                          Runtime
-                        </span>
-
-                        <strong>
-                          {selectedPersonnel.latestPractice
-                            ? getRuntime(
-                              selectedPersonnel.latestPractice
-                            )
-                            : "N/A"}
-                        </strong>
-
-                        <small>
-                          Latest practice
-                        </small>
-                      </div>
-
-                      <div>
-                        <span>
-                          Strongest
-                        </span>
-
-                        <strong>
-                          {
-                            selectedPersonnel
-                              .strongestComponent
-                          }
-                        </strong>
-
-                        <small>
-                          Calculator-based
-                        </small>
-                      </div>
-
-                      <div>
-                        <span>
-                          Needs attention
-                        </span>
-
-                        <strong>
-                          {
-                            selectedPersonnel
-                              .weakestComponent
-                          }
-                        </strong>
-
-                        <small>
-                          Calculator-based
-                        </small>
-                      </div>
-                    </div>
-
-                    {selectedPersonnel.componentScores
-                      .length > 0 && (
-                        <div className="training-component-section">
-                          <h3>
-                            Practice Performance
-                          </h3>
-
-                          {selectedPersonnel.componentScores.map(
-                            (component) => (
-                              <div
-                                className="training-component-row"
-                                key={
-                                  component.name
-                                }
-                              >
-                                <div className="training-component-label">
-                                  <span>
-                                    {
-                                      component.name
-                                    }
-                                  </span>
-
-                                  <strong>
-                                    {
-                                      component.score
-                                    }
-                                    /
-                                    {
-                                      component.maximum
-                                    }
-                                  </strong>
-                                </div>
-
-                                <div className="training-component-track">
-                                  <div
-                                    className="training-component-fill"
-                                    style={{
-                                      width: `${component.percentage}%`,
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      )}
-
-                    <div className="training-selected-action">
-                      <Target size={17} />
-
-                      <div>
-                        <strong>
-                          Suggested action
-                        </strong>
-
-                        <p>
-                          {
-                            selectedPersonnel
-                              .suggestedAction
-                          }
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="training-history">
-                      <div className="training-history-heading">
-                        <h3>
-                          Recent Practice
-                        </h3>
-
-                        <span>
-                          Latest 3
-                        </span>
-                      </div>
-
-                      {selectedPersonnel
-                        .practiceRecords
-                        .length === 0 ? (
-                        <p className="training-no-history">
-                          No practice records
-                          available.
-                        </p>
-                      ) : (
-                        selectedPersonnel.practiceRecords
-                          .slice(-3)
-                          .reverse()
-                          .map(
-                            (
-                              record,
-                              index
-                            ) => (
-                              <div
-                                className="training-history-row"
-                                key={
-                                  record.id ||
-                                  index
-                                }
-                              >
-                                <span className="training-history-number">
-                                  {
-                                    index +
-                                    1
-                                  }
-                                </span>
-
-                                <div className="training-history-info">
-                                  <strong>
-                                    {formatRecordDate(
-                                      record
-                                    )}
-                                  </strong>
-
-                                  <small>
-                                    {getPushups(
-                                      record
-                                    )}{" "}
-                                    push-ups ·{" "}
-                                    {getSitups(
-                                      record
-                                    )}{" "}
-                                    sit-ups ·{" "}
-                                    {getRuntime(
-                                      record
-                                    )}
-                                  </small>
-                                </div>
-
-                                <strong className="training-history-score">
-                                  {getTotalScore(
-                                    record
-                                  )}
-                                </strong>
-                              </div>
-                            )
-                          )
-                      )}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
+              )}
+            </section>
+          )}
         </main>
+
+        <div className="training-step-navigation">
+          <button
+            type="button"
+            className="training-nav-btn secondary"
+            onClick={goToPreviousStep}
+            disabled={currentStep === 1}
+          >
+            <ChevronLeft size={18} />
+            Back
+          </button>
+
+          <button
+            type="button"
+            className="training-nav-btn primary"
+            onClick={goToNextStep}
+            disabled={currentStep === TOTAL_STEPS}
+          >
+            Next
+            <ChevronRight size={18} />
+          </button>
+        </div>
+
         <CommanderNav activePage="commander-training" />
       </div>
     </div>

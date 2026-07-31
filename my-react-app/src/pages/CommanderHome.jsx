@@ -316,11 +316,6 @@ export default function CommanderHome() {
                                     Today's Alerts
                                 </h3>
 
-                                <AlertTriangle
-                                    size={20}
-                                    color="#d97706"
-                                />
-
                             </div>
 
                             {alerts.length === 0 ? (
