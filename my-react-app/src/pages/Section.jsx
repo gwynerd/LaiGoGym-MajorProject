@@ -130,10 +130,7 @@ export default function Section() {
         <header className="commander-header">
           <h2 className="commander-header-title">Section</h2>
 
-          <div className="commander-profile-mini">
-            <User size={16} />
-            <span>{getDisplayName(commander)}</span>
-          </div>
+        
         </header>
 
         <main className="commander-content">

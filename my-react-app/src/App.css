@@ -1620,7 +1620,295 @@ body {
 .commander-home-loading-header h2 {
   margin: 0;
 }
+/* Commander Home */
 
+.commander-home-line-section {
+  position: relative;
+
+  width: 100%;
+  padding: 22px 4px 24px;
+
+  border-bottom: 1px solid #cfdae8;
+
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.commander-home-line-section:last-child {
+  border-bottom: none;
+}
+
+.commander-home-section-title {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  margin-bottom: 17px;
+}
+
+.commander-home-section-title h3 {
+  margin: 0;
+
+  color: #062b55;
+  font-size: 17px;
+  font-weight: 800;
+
+  text-align: center;
+}
+
+
+.commander-home-info-container {
+  position: relative;
+
+  display: inline-flex;
+  align-items: center;
+}
+
+.commander-home-info-button {
+  width: 27px;
+  height: 27px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border: 1px solid #bfd0e2;
+  border-radius: 50%;
+
+  background: #eef4fb;
+  color: #0b4f8a;
+
+  cursor: pointer;
+}
+
+.commander-home-info-button:hover,
+.commander-home-info-button:focus-visible {
+  border-color: #0b4f8a;
+  background: #dfeaf6;
+
+  outline: none;
+}
+
+.commander-home-info-popup {
+  position: absolute;
+  top: 35px;
+  right: -7px;
+  z-index: 40;
+
+  width: 230px;
+  padding: 11px 12px;
+
+  border: 1px solid #c7d6e6;
+  border-radius: 11px;
+
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(6, 43, 85, 0.16);
+
+  color: #475569;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+
+  text-align: left;
+}
+
+.commander-home-info-popup::before {
+  content: "";
+
+  position: absolute;
+  top: -6px;
+  right: 14px;
+
+  width: 10px;
+  height: 10px;
+
+  border-top: 1px solid #c7d6e6;
+  border-left: 1px solid #c7d6e6;
+
+  background: #ffffff;
+
+  transform: rotate(45deg);
+}
+
+.commander-home-results-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 11px;
+}
+
+.commander-home-result-box {
+  min-height: 93px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  padding: 14px;
+
+  border: 1px solid #ccd9e7;
+  border-radius: 15px;
+
+  background: #f5f8fc;
+
+  text-align: center;
+}
+
+.commander-home-result-box strong {
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.commander-home-result-box span {
+  margin-top: 9px;
+
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.commander-home-result-box.gold strong {
+  color: #d4a100;
+}
+
+.commander-home-result-box.silver strong {
+  color: #6b7280;
+}
+
+.commander-home-result-box.pass strong {
+  color: #188038;
+}
+
+.commander-home-result-box.fail strong {
+  color: #d93025;
+}
+
+.commander-home-no-result-text {
+  margin: 13px 0 0;
+
+  color: #64748b;
+  font-size: 12px;
+
+  text-align: center;
+}
+
+
+.commander-home-alert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.commander-home-alert {
+  width: 100%;
+
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: flex-start;
+  gap: 9px;
+
+  padding: 11px 0;
+
+  border-bottom: 1px solid #e3e9f1;
+
+  text-align: left;
+}
+
+.commander-home-alert:last-child {
+  border-bottom: none;
+}
+
+.commander-home-alert svg {
+  margin-top: 1px;
+}
+
+.commander-home-alert p {
+  width: 100%;
+
+  margin: 0;
+
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+
+  text-align: left;
+}
+
+.commander-home-no-alerts {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  padding: 14px 0;
+}
+
+.commander-home-no-alerts p {
+  margin: 0;
+
+  color: #475569;
+  font-size: 12px;
+}
+
+
+.commander-home-readiness-section {
+  padding-bottom: 34px;
+}
+
+.commander-home-readiness-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+
+  padding: 5px 3px 8px;
+}
+
+.commander-home-readiness-text {
+  max-width: 175px;
+
+  text-align: left;
+}
+
+.commander-home-readiness-text h3 {
+  margin: 0;
+
+  color: #062b55;
+  font-size: 15px;
+  font-weight: 800;
+
+  text-align: left;
+}
+
+.commander-home-readiness-text p {
+  margin: 7px 0;
+
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.5;
+
+  text-align: left;
+}
+
+.commander-home-readiness-text > strong {
+  display: block;
+
+  font-size: 12px;
+  font-weight: 800;
+
+  text-align: left;
+}
+
+
+.commander-home-content {
+  padding-bottom: 10px;
+}
 .commander-page {
   min-height: 100vh;
   background: #e9eef5;
@@ -6229,4 +6517,37 @@ body {
 .active-nav svg,
 .nav-item svg {
   color: inherit;
+}
+.commander-home-quick-section {
+  width: 100%;
+  margin: 0;
+  padding: 20px 0 26px;
+
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+
+  border-bottom: 1px solid #d7e0ea !important;
+}
+.commander-home-quick-section > .commander-card-title {
+  margin: 0 0 17px;
+
+  color: #062b55;
+  font-size: 17px;
+  font-weight: 800;
+
+  text-align: center;
+}
+
+/* Keep each individual statistic box */
+
+.commander-home-quick-section .commander-home-quick-grid {
+  margin: 0;
+}
+
+.commander-home-quick-section .commander-home-stat-card {
+  border: 1px solid #ccd9e7;
+  background: #f5f8fc;
+  box-shadow: none;
 }

@@ -1136,7 +1136,7 @@ function CommanderTraining() {
 
           <div className="commander-loading-content">
             <div className="commander-loading-circle" />
-            <p>Loading Training...</p>
+            <p>Loading Training Page...</p>
           </div>
         </div>
       </div>
@@ -1163,15 +1163,7 @@ function CommanderTraining() {
       
           </div>
 
-          <div className="commander-profile-mini">
-            <UserRound size={15} />
-
-            <span>
-              {commander
-                ? getPersonName(commander)
-                : "Commander"}
-            </span>
-          </div>
+         
         </header>
 
         <main className="commander-content training-wizard-content">
