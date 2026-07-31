@@ -1329,8 +1329,9 @@ body {
 }
 
 .commander-home-content {
-  padding: 18px 18px 30px;
+  padding: 1px 18px 30px;
 }
+
 
 .commander-home-quick-grid {
   display: grid;
@@ -4416,6 +4417,381 @@ body {
   margin: 4px 0;
   font-size: 12px;
   color: #222;
+}
+.section-combined-content {
+  padding-bottom: 120px;
+}
+
+/* Remove outer Personnel Management box */
+
+.section-management-section {
+  width: 100%;
+  margin: 0;
+  padding: 20px 0 24px;
+
+  border: none;
+  border-radius: 0;
+
+  background: transparent;
+  box-shadow: none;
+
+  text-align: center;
+}
+
+.section-management-section > .commander-card-title {
+  margin-top: 0;
+}
+
+.section-management-section .commander-text {
+  text-align: center;
+}
+
+/* Divider lines */
+
+.section-page-divider {
+  width: 100%;
+  height: 1px;
+
+  margin: 0 0 22px;
+
+  background: #d5dfeb;
+}
+
+.section-ai-divider {
+  margin: 28px 0 0;
+}
+
+/* Personnel list */
+
+.section-personnel-list {
+  width: 100%;
+}
+
+.section-empty-message {
+  padding: 20px 0 25px;
+  text-align: center;
+}
+
+/*
+  Keep individual personnel cards.
+  These remain separate because each person has their own
+  details, history graph and prediction.
+*/
+
+.section-personnel-card {
+  margin-bottom: 18px;
+}
+
+.section-personnel-details {
+  cursor: default;
+}
+
+/* More spacing within expanded personnel details */
+
+.section-details-list,
+.section-latest-result {
+  text-align: left;
+}
+
+.section-details-list p,
+.section-latest-result p {
+  margin: 8px 0;
+}
+
+.section-personnel-details hr {
+  margin: 20px 0;
+
+  border: none;
+  border-top: 1px solid #d8e2ed;
+}
+
+/* Past-five heading */
+
+.section-history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-bottom: 10px;
+}
+
+.section-history-heading h4 {
+  margin: 0;
+}
+
+.section-history-heading span {
+  flex-shrink: 0;
+
+  color: #64748b;
+  font-size: 11px;
+}
+
+.section-ippt-graph-wrap {
+  width: 100%;
+  overflow: hidden;
+
+  padding: 5px 0 0;
+}
+
+.section-no-history {
+  padding: 12px 0;
+  text-align: center;
+}
+
+/* =========================================================
+   INDIVIDUAL AI PASSING PROBABILITY
+========================================================= */
+
+.section-personnel-prediction {
+  width: 100%;
+}
+
+.section-prediction-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  text-align: left;
+}
+
+.section-prediction-title > svg {
+  flex-shrink: 0;
+
+  margin-top: 1px;
+
+  color: #0b4f8a;
+}
+
+.section-prediction-title h4 {
+  margin: 0;
+
+  color: #062b55;
+}
+
+.section-prediction-title p {
+  margin: 5px 0 0;
+
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+
+  text-align: left;
+}
+
+.section-prediction-button {
+  width: 100%;
+  min-height: 44px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  margin-top: 15px;
+
+  border: none;
+  border-radius: 12px;
+
+  background: #0b4f8a;
+  color: #ffffff;
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.section-prediction-button:disabled {
+  background: #b9c6d4;
+  cursor: not-allowed;
+}
+
+.section-prediction-result {
+  margin-top: 16px;
+  padding-top: 16px;
+
+  border-top: 1px solid #d8e2ed;
+}
+
+.section-prediction-percentage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  padding-bottom: 15px;
+
+  text-align: center;
+}
+
+.section-prediction-percentage strong {
+  color: #0b4f8a;
+  font-size: 29px;
+  line-height: 1;
+}
+
+.section-prediction-percentage span {
+  margin-top: 6px;
+
+  color: #64748b;
+  font-size: 11px;
+}
+
+.section-prediction-details {
+  text-align: left;
+}
+
+.section-prediction-details p {
+  margin: 9px 0;
+
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+
+  text-align: left;
+}
+
+.section-spin {
+  animation: sectionSpin 0.8s linear infinite;
+}
+
+@keyframes sectionSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================================================
+   BOTTOM AI GROUP RECOMMENDATION WITHOUT OUTER BOX
+========================================================= */
+
+.section-ai-recommendation-section {
+  width: 100%;
+
+  margin: 0;
+  padding: 24px 0 34px;
+
+  border: none;
+  border-radius: 0;
+
+  background: transparent;
+  box-shadow: none;
+}
+
+.section-ai-recommendation-section
+  > .commander-card-title {
+  margin-top: 0;
+  text-align: center;
+}
+
+.section-ai-description {
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.section-personnel-details {
+  width: 100%;
+
+  margin-top: 16px;
+  padding: 18px 0 4px;
+
+  border: none !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+
+  text-align: left;
+}
+
+
+.section-personnel-details::before {
+  content: "";
+
+  display: block;
+  width: 100%;
+  height: 1px;
+
+  margin-bottom: 18px;
+
+  background: #cbd8e6;
+}
+
+
+.section-personnel-card .unit-details-card {
+  margin-top: 16px;
+  padding: 18px 0 4px;
+
+  border: none !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+
+.section-personnel-details hr {
+  width: 100%;
+
+  margin: 20px 0;
+
+  border: none;
+  border-top: 1px solid #cbd8e6;
+}
+
+.section-latest-result {
+  padding: 0;
+
+  border: none !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.section-ippt-graph-wrap {
+  padding: 6px 0 0;
+
+  border: none !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+
+.section-personnel-prediction {
+  padding: 0;
+
+  border: none !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+
+.section-prediction-result {
+  margin-top: 17px;
+  padding: 17px 0 0;
+
+  border: none;
+  border-top: 1px solid #cbd8e6;
+
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.section-personnel-details h4,
+.section-personnel-details p,
+.section-details-list,
+.section-latest-result,
+.section-history-heading,
+.section-prediction-title,
+.section-prediction-details {
+  text-align: left;
 }
 
 .progress-bar {

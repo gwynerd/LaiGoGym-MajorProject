@@ -1,7 +1,6 @@
 import {
   Home,
   Users,
-  BarChart3,
   Dumbbell,
   User
 } from "lucide-react";
@@ -28,13 +27,7 @@ export default function CommanderNav({ activePage }) {
         <span>Section</span>
       </div>
 
-      <div
-        className={activePage === "dashboard" ? "commander-active-nav" : "commander-nav-item"}
-        onClick={() => navigate("/commander")}
-      >
-        <BarChart3 size={18} />
-        <span>Dashboard</span>
-      </div>
+      
 
       <div
         className={activePage === "commander-training" ? "commander-active-nav" : "commander-nav-item"}
