@@ -23,13 +23,13 @@ import {
 export default function Section() {
   const [commander, setCommander] = useState(null);
   const [personnel, setPersonnel] = useState([]);
-
   const [practiceHistory, setPracticeHistory] = useState({});
   const [officialHistory, setOfficialHistory] = useState({});
 
   const [scoreType, setScoreType] = useState("official");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedPersonnelID, setSelectedPersonnelID] = useState("");
+  const [selectedPersonnelID, setSelectedPersonnelID] =
+    useState("");
 
   const [loading, setLoading] = useState(true);
 
@@ -38,21 +38,14 @@ export default function Section() {
   const [aiError, setAiError] = useState("");
   const [expandedGroups, setExpandedGroups] = useState({});
 
-  /*
-    Each personnel receives their own prediction state.
+  const [personnelPredictions, setPersonnelPredictions] =
+    useState({});
 
-    Example:
-    personnelPredictions[userID] = {
-      name,
-      passingProbability,
-      riskLevel,
-      reason,
-      recommendedAction
-    }
-  */
-  const [personnelPredictions, setPersonnelPredictions] = useState({});
-  const [predictionLoading, setPredictionLoading] = useState({});
-  const [predictionErrors, setPredictionErrors] = useState({});
+  const [predictionLoading, setPredictionLoading] =
+    useState({});
+
+  const [predictionErrors, setPredictionErrors] =
+    useState({});
 
   const currentUser =
     JSON.parse(localStorage.getItem("user")) || {};
@@ -70,7 +63,9 @@ export default function Section() {
           await getPersonnelByCommanderId(commanderID);
 
         const practiceData =
-          await getPastIPPTRecordsForPersonnel(personnelData);
+          await getPastIPPTRecordsForPersonnel(
+            personnelData
+          );
 
         const officialData =
           await getPastOfficialIPPTRecordsForPersonnel(
@@ -154,13 +149,6 @@ export default function Section() {
         [userID]: "",
       }));
 
-      /*
-        The Gemini service already accepts personnel and
-        official-history collections.
-
-        We provide only the selected personnel so Gemini
-        generates a prediction specifically for that person.
-      */
       const result = await generatePassingProbability(
         [person],
         {
@@ -218,7 +206,7 @@ export default function Section() {
           </header>
 
           <main className="commander-content commander-loading-content">
-            <div className="commander-loading-circle"></div>
+            <div className="commander-loading-circle" />
             <p>Loading Section Page...</p>
           </main>
         </div>
@@ -241,15 +229,16 @@ export default function Section() {
   const officialFailCount = personnel.filter(
     (person) => {
       const userID = getPersonID(person);
+
       const records =
         officialHistory[userID] || [];
 
       const latestOfficial =
-        records[records.length - 1];
+        getLatestRecord(records);
 
       return (
-        latestOfficial?.result
-          ?.toLowerCase() === "fail"
+        latestOfficial?.result?.toLowerCase() ===
+        "fail"
       );
     }
   ).length;
@@ -269,7 +258,7 @@ export default function Section() {
         </header>
 
         <main className="commander-content section-combined-content">
-          {/* PERSONNEL MANAGEMENT — NO OUTER CARD */}
+          {/* PERSONNEL MANAGEMENT */}
 
           <section className="section-management-section">
             <h3 className="commander-card-title">
@@ -331,8 +320,6 @@ export default function Section() {
             </div>
           </section>
 
-          {/* LINE BETWEEN MANAGEMENT AND PERSONNEL */}
-
           <div className="section-page-divider" />
 
           {/* PERSONNEL CARDS */}
@@ -348,32 +335,37 @@ export default function Section() {
               filteredPersonnel.map((person) => {
                 const userID = getPersonID(person);
 
-                const records =
+                const activeRecords =
                   activeHistory[userID] || [];
 
                 const officialRecords =
                   officialHistory[userID] || [];
 
-                const latestRecord =
-                  records[records.length - 1];
+                const practiceRecords =
+                  practiceHistory[userID] || [];
+
+                const latestActiveRecord =
+                  getLatestRecord(activeRecords);
 
                 const isExpanded =
                   selectedPersonnelID === userID;
 
                 const displayResult =
-                  scoreType === "official"
-                    ? latestRecord?.result || "N/A"
-                    : latestRecord?.result ||
-                      person.ippt ||
-                      "N/A";
+                  latestActiveRecord?.result ||
+                  (scoreType === "practice"
+                    ? person.ippt
+                    : null) ||
+                  "N/A";
 
                 const displayScore =
-                  latestRecord?.totalScore ??
-                  latestRecord?.totalscore ??
+                  getRecordScore(
+                    latestActiveRecord
+                  ) ??
                   (scoreType === "practice"
-                    ? person.readiness
-                    : 0) ??
-                  0;
+                    ? Number(
+                      person.readiness || 0
+                    )
+                    : 0);
 
                 return (
                   <section
@@ -389,27 +381,30 @@ export default function Section() {
                       </h3>
 
                       <p className="unit-card-rank">
-                        {person.rank || "Rank N/A"}
+                        {person.rank ||
+                          "Rank N/A"}
                       </p>
                     </div>
 
                     <div
                       className="unit-result-circle"
                       style={{
-                        background: `radial-gradient(
+                        background: `
+                          radial-gradient(
                             circle,
                             white 58%,
                             transparent 59%
                           ),
                           conic-gradient(
                             ${getIPPTColor(
-                              displayResult
-                            )}
+                          displayResult
+                        )}
                             ${clampScore(
-                              displayScore
-                            )}%,
+                          displayScore
+                        )}%,
                             #d9e2ee 0
-                          )`,
+                          )
+                        `,
                       }}
                     >
                       <div className="unit-circle-content">
@@ -421,7 +416,7 @@ export default function Section() {
                               ),
                           }}
                         >
-                          {displayScore ?? 0}
+                          {displayScore}
                         </strong>
 
                         <span
@@ -446,22 +441,24 @@ export default function Section() {
                     {isExpanded && (
                       <PersonnelDetails
                         person={person}
-                        records={records}
                         officialRecords={
                           officialRecords
                         }
-                        scoreType={scoreType}
+                        practiceRecords={
+                          practiceRecords
+                        }
                         prediction={
                           personnelPredictions[
-                            userID
+                          userID
                           ] || null
                         }
                         predictionLoading={Boolean(
                           predictionLoading[userID]
                         )}
                         predictionError={
-                          predictionErrors[userID] ||
-                          ""
+                          predictionErrors[
+                          userID
+                          ] || ""
                         }
                         onGeneratePrediction={() =>
                           handleGeneratePersonnelPrediction(
@@ -476,13 +473,11 @@ export default function Section() {
             )}
           </section>
 
-          {/* BOTTOM DIVIDER */}
+          {/* AI GROUP RECOMMENDATION */}
 
           {scoreType === "official" && (
             <>
               <div className="section-page-divider section-ai-divider" />
-
-              {/* AI OFFICIAL IPPT RECOMMENDATION — NO OUTER CARD */}
 
               <section className="section-ai-recommendation-section">
                 <h3 className="commander-card-title">
@@ -490,9 +485,9 @@ export default function Section() {
                 </h3>
 
                 <p className="commander-text section-ai-description">
-                  Generate section-wide training groups
-                  based on the latest official IPPT
-                  performance.
+                  Generate section-wide training
+                  groups based on the latest official
+                  IPPT performance.
                 </p>
 
                 {officialFailCount > 0 && (
@@ -507,9 +502,9 @@ export default function Section() {
                       {officialFailCount === 1
                         ? "personnel has"
                         : "personnel have"}{" "}
-                      failed their latest official IPPT
-                      and may need closer training
-                      support.
+                      failed their latest official
+                      IPPT and may need closer
+                      training support.
                     </p>
                   </div>
                 )}
@@ -525,7 +520,7 @@ export default function Section() {
                   {aiLoading ? (
                     <>
                       Generating
-                      <span className="loading-dots"></span>
+                      <span className="loading-dots" />
                     </>
                   ) : (
                     "Generate AI Group Plan"
@@ -586,49 +581,54 @@ export default function Section() {
                           {expandedGroups[
                             group.groupName
                           ] && (
-                            <div className="commander-ai-details">
-                              <p>
-                                <b>Personnel:</b>{" "}
-                                {group.personnel?.join(
-                                  ", "
-                                ) || "N/A"}
-                              </p>
+                              <div className="commander-ai-details">
+                                <p>
+                                  <b>
+                                    Personnel:
+                                  </b>{" "}
+                                  {group.personnel?.join(
+                                    ", "
+                                  ) || "N/A"}
+                                </p>
 
-                              <p>
-                                <b>Reason:</b>{" "}
-                                {
-                                  group.classificationReason
-                                }
-                              </p>
+                                <p>
+                                  <b>Reason:</b>{" "}
+                                  {
+                                    group.classificationReason
+                                  }
+                                </p>
 
-                              <p>
-                                <b>
-                                  Training Focus:
-                                </b>{" "}
-                                {
-                                  group.trainingFocus
-                                }
-                              </p>
+                                <p>
+                                  <b>
+                                    Training Focus:
+                                  </b>{" "}
+                                  {
+                                    group.trainingFocus
+                                  }
+                                </p>
 
-                              <div className="commander-ai-plan">
-                                <b>
-                                  Recommended Plan:
-                                </b>
+                                <div className="commander-ai-plan">
+                                  <b>
+                                    Recommended Plan:
+                                  </b>
 
-                                <ul>
-                                  {group.recommendedPlan?.map(
-                                    (item, itemIndex) => (
-                                      <li
-                                        key={`${item}-${itemIndex}`}
-                                      >
-                                        {item}
-                                      </li>
-                                    )
-                                  )}
-                                </ul>
+                                  <ul>
+                                    {group.recommendedPlan?.map(
+                                      (
+                                        item,
+                                        itemIndex
+                                      ) => (
+                                        <li
+                                          key={`${item}-${itemIndex}`}
+                                        >
+                                          {item}
+                                        </li>
+                                      )
+                                    )}
+                                  </ul>
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
                         </div>
                       )
                     )}
@@ -647,26 +647,61 @@ export default function Section() {
 
 function PersonnelDetails({
   person,
-  records,
-  officialRecords,
-  scoreType,
+  officialRecords = [],
+  practiceRecords = [],
   prediction,
   predictionLoading,
   predictionError,
   onGeneratePrediction,
 }) {
-  const latestRecord =
-    records[records.length - 1];
+  const latestOfficial =
+    getLatestRecord(officialRecords);
+
+  const latestPractice =
+    getLatestRecord(practiceRecords);
+
+  const previousPractice =
+    getPreviousRecord(practiceRecords);
+
+  const officialScore =
+    getRecordScore(latestOfficial);
+
+  const practiceScore =
+    getRecordScore(latestPractice);
+
+  const previousPracticeScore =
+    getRecordScore(previousPractice);
+
+  const trend = calculateScoreTrend(
+    practiceScore,
+    previousPracticeScore
+  );
+
+  const performanceRecord =
+    latestPractice || latestOfficial;
+
+  const stationAnalysis =
+    getStationAnalysis(performanceRecord);
+
+  const runtime =
+    latestPractice?.runtime ??
+    latestPractice?.runTime ??
+    latestOfficial?.runtime ??
+    latestOfficial?.runTime ??
+    "N/A";
 
   return (
     <div
       className="unit-details-card section-personnel-details"
-      onClick={(event) => event.stopPropagation()}
+      onClick={(event) =>
+        event.stopPropagation()
+      }
     >
+      {/* PERSONNEL DETAILS */}
+
       <h4>Personnel Details</h4>
 
       <div className="section-details-list">
-        
         <p>
           <b>DOB:</b>{" "}
           {formatPersonDOB(person.dob)}
@@ -676,75 +711,114 @@ function PersonnelDetails({
           <b>Unit:</b>{" "}
           {person.unit || "N/A"}
         </p>
+
       </div>
 
       <hr />
 
-      <h4>
-        {scoreType === "official"
-          ? "Latest Official IPPT"
-          : "Latest Practice IPPT"}
-      </h4>
+      {/* 2 × 3 PERFORMANCE GRID */}
 
-      {!latestRecord ? (
-        <p>
-          No{" "}
-          {scoreType === "official"
-            ? "official"
-            : "practice"}{" "}
-          IPPT record available.
-        </p>
-      ) : (
-        <div className="section-latest-result">
-          <p>
-            <b>Date:</b>{" "}
-            {formatDate(
-              latestRecord.date ||
-                latestRecord.createdAt
-            )}
-          </p>
+      <div className="section-performance-grid">
+        <div className="section-performance-stat">
+          <span>Official</span>
 
-          <p>
-            <b>Result:</b>{" "}
-            {latestRecord.result || "N/A"}
-          </p>
+          <strong
+            style={{
+              color: getIPPTColor(
+                latestOfficial?.result
+              ),
+            }}
+          >
+            {latestOfficial?.result || "N/A"}
+          </strong>
 
-          <p>
-            <b>Total Score:</b>{" "}
-            {latestRecord.totalScore ??
-              latestRecord.totalscore ??
-              "N/A"}
-          </p>
-
-          <p>
-            <b>Push-Ups:</b>{" "}
-            {latestRecord.pushups ?? 0}
-          </p>
-
-          <p>
-            <b>Sit-Ups:</b>{" "}
-            {latestRecord.situps ?? 0}
-          </p>
-
-          <p>
-            <b>2.4km Run:</b>{" "}
-            {latestRecord.runtime || "N/A"}
-          </p>
+          <small>
+            {officialScore !== null
+              ? `${officialScore} points`
+              : "No record"}
+          </small>
         </div>
-      )}
 
-      {/* PAST 5 OFFICIAL IPPT GRAPH */}
+        <div className="section-performance-stat">
+          <span>Practice</span>
+
+          <strong>
+            {practiceScore !== null
+              ? practiceScore
+              : "N/A"}
+          </strong>
+
+          <small>
+            {latestPractice
+              ? formatDate(
+                latestPractice.date ||
+                latestPractice.createdAt
+              )
+              : "No record"}
+          </small>
+        </div>
+
+        <div className="section-performance-stat">
+          <span>Score change</span>
+
+          <strong
+            className={`section-score-change ${trend.className}`}
+          >
+            {trend.value}
+          </strong>
+
+          <small>{trend.label}</small>
+        </div>
+
+        <div className="section-performance-stat">
+          <span>Runtime</span>
+
+          <strong>{runtime}</strong>
+
+          <small>
+            {latestPractice
+              ? "Latest practice"
+              : latestOfficial
+                ? "Latest official"
+                : "No record"}
+          </small>
+        </div>
+
+        <div className="section-performance-stat">
+          <span>Strongest</span>
+
+          <strong>
+            {stationAnalysis.strongest}
+          </strong>
+
+          <small>Calculator-based</small>
+        </div>
+
+        <div className="section-performance-stat">
+          <span>Needs attention</span>
+
+          <strong>
+            {stationAnalysis.weakest}
+          </strong>
+
+          <small>Calculator-based</small>
+        </div>
+      </div>
+
+      {/* OFFICIAL GRAPH */}
 
       <hr />
 
       <div className="section-history-heading">
-        <h4>Past 5 Official IPPT Records</h4>
+        <h4>
+          Past 5 Official IPPT Records
+        </h4>
 
         <span>
-          {officialRecords.length} record
+          {officialRecords.length}{" "}
           {officialRecords.length === 1
-            ? ""
-            : "s"}
+            ? "record"
+            : "records"}
         </span>
       </div>
 
@@ -752,7 +826,7 @@ function PersonnelDetails({
         records={officialRecords}
       />
 
-      {/* INDIVIDUAL AI PASSING PROBABILITY */}
+      {/* AI PASSING PROBABILITY */}
 
       <hr />
 
@@ -766,8 +840,9 @@ function PersonnelDetails({
             </h4>
 
             <p>
-              Estimate this personnel&apos;s chance
-              of passing the next official IPPT.
+              Estimate this personnel&apos;s
+              chance of passing the next
+              official IPPT.
             </p>
           </div>
         </div>
@@ -784,6 +859,7 @@ function PersonnelDetails({
                 size={17}
                 className="section-spin"
               />
+
               Generating Prediction...
             </>
           ) : prediction ? (
@@ -817,7 +893,8 @@ function PersonnelDetails({
             <div className="section-prediction-details">
               <p>
                 <b>Risk Level:</b>{" "}
-                {prediction.riskLevel || "N/A"}
+                {prediction.riskLevel ||
+                  "N/A"}
               </p>
 
               <p>
@@ -826,7 +903,9 @@ function PersonnelDetails({
               </p>
 
               <p>
-                <b>Recommended Action:</b>{" "}
+                <b>
+                  Recommended Action:
+                </b>{" "}
                 {prediction.recommendedAction ||
                   "N/A"}
               </p>
@@ -843,7 +922,10 @@ function IPPTMiniGraph({ records }) {
   const height = 160;
   const padding = 32;
 
-  if (!Array.isArray(records) || records.length === 0) {
+  if (
+    !Array.isArray(records) ||
+    records.length === 0
+  ) {
     return (
       <p className="commander-text section-no-history">
         No official IPPT records available.
@@ -854,25 +936,27 @@ function IPPTMiniGraph({ records }) {
   const scores = records.map((record) =>
     Number(
       record.totalScore ??
-        record.totalscore ??
-        0
+      record.totalscore ??
+      0
     )
   );
-
-  const maxScore = 100;
 
   const points = scores.map(
     (score, index) => {
       const x =
         padding +
-        (index * (width - padding * 2)) /
-          Math.max(records.length - 1, 1);
+        (index *
+          (width - padding * 2)) /
+        Math.max(
+          records.length - 1,
+          1
+        );
 
       const y =
         height -
         padding -
-        (score / maxScore) *
-          (height - padding * 2);
+        (score / 100) *
+        (height - padding * 2);
 
       return {
         x,
@@ -883,7 +967,10 @@ function IPPTMiniGraph({ records }) {
   );
 
   const linePoints = points
-    .map((point) => `${point.x},${point.y}`)
+    .map(
+      (point) =>
+        `${point.x},${point.y}`
+    )
     .join(" ");
 
   return (
@@ -928,37 +1015,45 @@ function IPPTMiniGraph({ records }) {
           strokeLinejoin="round"
         />
 
-        {points.map((point, index) => (
-          <g key={records[index].id || index}>
-            <circle
-              cx={point.x}
-              cy={point.y}
-              r="4"
-              fill="#0b4f8a"
-            />
-
-            <text
-              x={point.x - 8}
-              y={point.y - 9}
-              fontSize="10"
-              fill="#062b55"
+        {points.map(
+          (point, index) => (
+            <g
+              key={
+                records[index].id ||
+                index
+              }
             >
-              {point.score}
-            </text>
+              <circle
+                cx={point.x}
+                cy={point.y}
+                r="4"
+                fill="#0b4f8a"
+              />
 
-            <text
-              x={point.x - 18}
-              y={height - 8}
-              fontSize="8"
-              fill="#475569"
-            >
-              {formatShortDate(
-                records[index].date ||
-                  records[index].createdAt
-              )}
-            </text>
-          </g>
-        ))}
+              <text
+                x={point.x - 8}
+                y={point.y - 9}
+                fontSize="10"
+                fill="#062b55"
+              >
+                {point.score}
+              </text>
+
+              <text
+                x={point.x - 18}
+                y={height - 8}
+                fontSize="8"
+                fill="#475569"
+              >
+                {formatShortDate(
+                  records[index].date ||
+                  records[index]
+                    .createdAt
+                )}
+              </text>
+            </g>
+          )
+        )}
       </svg>
     </div>
   );
@@ -971,11 +1066,176 @@ function getPersonID(person) {
 function getDisplayName(user) {
   return (
     user?.name ||
-    `${user?.firstName || ""} ${
-      user?.lastName || ""
-    }`.trim() ||
+    `${user?.firstName || ""} ${user?.lastName || ""
+      }`.trim() ||
     "N/A"
   );
+}
+
+function getLatestRecord(records = []) {
+  if (
+    !Array.isArray(records) ||
+    records.length === 0
+  ) {
+    return null;
+  }
+
+  return records[records.length - 1];
+}
+
+function getPreviousRecord(records = []) {
+  if (
+    !Array.isArray(records) ||
+    records.length < 2
+  ) {
+    return null;
+  }
+
+  return records[records.length - 2];
+}
+
+function getRecordScore(record) {
+  if (!record) return null;
+
+  const score =
+    record.totalScore ??
+    record.totalscore ??
+    record.ipptScore;
+
+  if (
+    score === undefined ||
+    score === null ||
+    score === ""
+  ) {
+    return null;
+  }
+
+  const number = Number(score);
+
+  return Number.isFinite(number)
+    ? number
+    : null;
+}
+
+function calculateScoreTrend(
+  latestScore,
+  previousScore
+) {
+  if (
+    latestScore === null ||
+    previousScore === null
+  ) {
+    return {
+      value: "N/A",
+      label: "No trend",
+      className: "neutral",
+    };
+  }
+
+  const difference =
+    Number(latestScore) -
+    Number(previousScore);
+
+  if (difference >= 3) {
+    return {
+      value: `+${difference}`,
+      label: "Improving",
+      className: "improving",
+    };
+  }
+
+  if (difference <= -3) {
+    return {
+      value: String(difference),
+      label: "Declining",
+      className: "declining",
+    };
+  }
+
+  return {
+    value:
+      difference > 0
+        ? `+${difference}`
+        : String(difference),
+
+    label: "Stable",
+    className: "stable",
+  };
+}
+
+function getStationAnalysis(record) {
+  if (!record) {
+    return {
+      strongest: "N/A",
+      weakest: "N/A",
+    };
+  }
+
+  const pushupScore = Number(
+    record.pushupScore ?? 0
+  );
+
+  const situpScore = Number(
+    record.situpScore ?? 0
+  );
+
+  const runScore = Number(
+    record.runScore ?? 0
+  );
+
+  const stations = [
+    {
+      name: "Push-ups",
+      score: pushupScore,
+      maximum: 25,
+    },
+    {
+      name: "Sit-ups",
+      score: situpScore,
+      maximum: 25,
+    },
+    {
+      name: "2.4 km run",
+      score: runScore,
+      maximum: 50,
+    },
+  ].map((station) => ({
+    ...station,
+
+    percentage:
+      station.maximum === 0
+        ? 0
+        : (station.score /
+          station.maximum) *
+        100,
+  }));
+
+  const hasStationScores =
+    stations.some(
+      (station) =>
+        station.score > 0
+    );
+
+  if (!hasStationScores) {
+    return {
+      strongest: "N/A",
+      weakest: "N/A",
+    };
+  }
+
+  const sorted = [...stations].sort(
+    (a, b) =>
+      b.percentage - a.percentage
+  );
+
+  return {
+    strongest:
+      sorted[0]?.name || "N/A",
+
+    weakest:
+      sorted[sorted.length - 1]
+        ?.name || "N/A",
+  };
 }
 
 function clampScore(value) {
@@ -983,7 +1243,9 @@ function clampScore(value) {
 
   return Math.min(
     Math.max(
-      Number.isFinite(number) ? number : 0,
+      Number.isFinite(number)
+        ? number
+        : 0,
       0
     ),
     100
@@ -1004,7 +1266,11 @@ function formatDate(date) {
       ? date.toDate()
       : new Date(date);
 
-  if (Number.isNaN(parsedDate.getTime())) {
+  if (
+    Number.isNaN(
+      parsedDate.getTime()
+    )
+  ) {
     return "No Date";
   }
 
@@ -1026,7 +1292,11 @@ function formatShortDate(date) {
       ? date.toDate()
       : new Date(date);
 
-  if (Number.isNaN(parsedDate.getTime())) {
+  if (
+    Number.isNaN(
+      parsedDate.getTime()
+    )
+  ) {
     return "-";
   }
 
