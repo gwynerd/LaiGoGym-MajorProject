@@ -5018,6 +5018,184 @@ body {
     transform: rotate(360deg);
   }
 }
+
+.section-graph-instruction {
+  margin: 0 0 7px;
+
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+
+  text-align: center;
+}
+
+.section-graph-point {
+  cursor: pointer;
+  outline: none;
+}
+
+.section-graph-point circle,
+.section-graph-point text {
+  transition:
+    r 0.18s ease,
+    fill 0.18s ease,
+    font-weight 0.18s ease;
+}
+
+.section-graph-point:focus-visible circle:nth-of-type(2) {
+  stroke: #d4a100;
+  stroke-width: 3;
+}
+
+.section-graph-empty-selection {
+  margin-top: 10px;
+  padding: 11px 4px 0;
+
+  border-top: 1px solid #d4dfeb;
+
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+
+  text-align: center;
+}
+
+/* =========================================================
+   SELECTED OFFICIAL RECORD BREAKDOWN
+========================================================= */
+
+.section-record-breakdown {
+  margin-top: 12px;
+  padding-top: 15px;
+
+  border-top: 1px solid #cbd8e6;
+
+  background: transparent;
+}
+
+.section-record-breakdown-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-bottom: 14px;
+}
+
+.section-record-breakdown-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  text-align: left;
+}
+
+.section-record-breakdown-header strong {
+  color: #062b55;
+  font-size: 14px;
+}
+
+.section-record-breakdown-header span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.section-record-breakdown-header button {
+  width: 27px;
+  height: 27px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  padding: 0;
+
+  border: 1px solid #cbd8e6;
+  border-radius: 50%;
+
+  background: transparent;
+  color: #64748b;
+
+  font-size: 19px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.section-record-breakdown-header button:hover {
+  background: #e7eef7;
+  color: #062b55;
+}
+
+/* Three station summary */
+
+.section-record-stations {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.section-record-stations > div {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  padding: 11px 4px;
+
+  border-right: 1px solid #d5dfeb;
+
+  text-align: center;
+}
+
+.section-record-stations > div:last-child {
+  border-right: none;
+}
+
+.section-record-stations span {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.section-record-stations strong {
+  margin-top: 5px;
+
+  color: #062b55;
+  font-size: 14px;
+
+  overflow-wrap: anywhere;
+}
+
+.section-record-stations small {
+  margin-top: 4px;
+
+  color: #188038;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* Full readable breakdown */
+
+.section-record-summary {
+  margin-top: 13px;
+  padding-top: 12px;
+
+  border-top: 1px solid #d5dfeb;
+}
+
+.section-record-summary p {
+  margin: 7px 0;
+
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+
+  text-align: left;
+}
+
 .progress-bar {
   width: 100%;
   height: 8px;

@@ -918,14 +918,14 @@ function PersonnelDetails({
 }
 
 function IPPTMiniGraph({ records }) {
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [selectedIndex, setSelectedIndex] = useState(null);
+
   const width = 300;
   const height = 160;
   const padding = 32;
 
-  if (
-    !Array.isArray(records) ||
-    records.length === 0
-  ) {
+  if (!Array.isArray(records) || records.length === 0) {
     return (
       <p className="commander-text section-no-history">
         No official IPPT records available.
@@ -936,45 +936,67 @@ function IPPTMiniGraph({ records }) {
   const scores = records.map((record) =>
     Number(
       record.totalScore ??
-      record.totalscore ??
-      0
+        record.totalscore ??
+        record.ipptScore ??
+        0
     )
   );
 
-  const points = scores.map(
-    (score, index) => {
-      const x =
-        padding +
-        (index *
-          (width - padding * 2)) /
-        Math.max(
-          records.length - 1,
-          1
-        );
+  const points = scores.map((score, index) => {
+    const x =
+      padding +
+      (index * (width - padding * 2)) /
+        Math.max(records.length - 1, 1);
 
-      const y =
-        height -
-        padding -
-        (score / 100) *
+    const y =
+      height -
+      padding -
+      (score / 100) *
         (height - padding * 2);
 
-      return {
-        x,
-        y,
-        score,
-      };
-    }
-  );
+    return {
+      x,
+      y,
+      score,
+    };
+  });
 
   const linePoints = points
-    .map(
-      (point) =>
-        `${point.x},${point.y}`
-    )
+    .map((point) => `${point.x},${point.y}`)
     .join(" ");
+
+  const activeIndex =
+    hoveredIndex !== null
+      ? hoveredIndex
+      : selectedIndex;
+
+  const activeRecord =
+    activeIndex !== null
+      ? records[activeIndex]
+      : null;
+
+  const handlePointClick = (index) => {
+    setSelectedIndex((current) =>
+      current === index ? null : index
+    );
+  };
+
+  const handlePointKeyDown = (event, index) => {
+    if (
+      event.key === "Enter" ||
+      event.key === " "
+    ) {
+      event.preventDefault();
+      handlePointClick(index);
+    }
+  };
 
   return (
     <div className="section-ippt-graph-wrap">
+      <p className="section-graph-instruction">
+        Tap or hover over a score to view its IPPT breakdown.
+      </p>
+
       <svg
         width="100%"
         height={height}
@@ -1015,46 +1037,216 @@ function IPPTMiniGraph({ records }) {
           strokeLinejoin="round"
         />
 
-        {points.map(
-          (point, index) => (
+        {points.map((point, index) => {
+          const isActive =
+            activeIndex === index;
+
+          return (
             <g
-              key={
-                records[index].id ||
-                index
+              key={records[index].id || index}
+              className="section-graph-point"
+              role="button"
+              tabIndex="0"
+              aria-label={`View IPPT details for ${formatDate(
+                records[index].date ||
+                  records[index].createdAt
+              )}`}
+              onMouseEnter={() =>
+                setHoveredIndex(index)
+              }
+              onMouseLeave={() =>
+                setHoveredIndex(null)
+              }
+              onClick={() =>
+                handlePointClick(index)
+              }
+              onKeyDown={(event) =>
+                handlePointKeyDown(
+                  event,
+                  index
+                )
               }
             >
+              {/* Larger invisible touch target */}
               <circle
                 cx={point.x}
                 cy={point.y}
-                r="4"
-                fill="#0b4f8a"
+                r="14"
+                fill="transparent"
+              />
+
+              <circle
+                cx={point.x}
+                cy={point.y}
+                r={isActive ? 6 : 4}
+                fill={
+                  isActive
+                    ? "#188038"
+                    : "#0b4f8a"
+                }
+                stroke="#ffffff"
+                strokeWidth={isActive ? 2 : 1}
               />
 
               <text
-                x={point.x - 8}
-                y={point.y - 9}
+                x={point.x}
+                y={point.y - 10}
                 fontSize="10"
                 fill="#062b55"
+                textAnchor="middle"
+                fontWeight={
+                  isActive ? "700" : "500"
+                }
               >
                 {point.score}
               </text>
 
               <text
-                x={point.x - 18}
+                x={point.x}
                 y={height - 8}
                 fontSize="8"
                 fill="#475569"
+                textAnchor="middle"
               >
                 {formatShortDate(
                   records[index].date ||
-                  records[index]
-                    .createdAt
+                    records[index].createdAt
                 )}
               </text>
             </g>
-          )
-        )}
+          );
+        })}
       </svg>
+
+      {activeRecord ? (
+        <OfficialRecordBreakdown
+          record={activeRecord}
+          onClose={() => {
+            setSelectedIndex(null);
+            setHoveredIndex(null);
+          }}
+        />
+      ) : (
+        <div className="section-graph-empty-selection">
+          Select a score to view push-ups, sit-ups and run details.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OfficialRecordBreakdown({
+  record,
+  onClose,
+}) {
+  const totalScore =
+    record?.totalScore ??
+    record?.totalscore ??
+    record?.ipptScore ??
+    0;
+
+  const pushups =
+    record?.pushups ??
+    record?.pushUps ??
+    0;
+
+  const situps =
+    record?.situps ??
+    record?.sitUps ??
+    0;
+
+  const runtime =
+    record?.runtime ??
+    record?.runTime ??
+    "N/A";
+
+  const pushupScore =
+    record?.pushupScore ?? 0;
+
+  const situpScore =
+    record?.situpScore ?? 0;
+
+  const runScore =
+    record?.runScore ?? 0;
+
+  return (
+    <div className="section-record-breakdown">
+      <div className="section-record-breakdown-header">
+        <div>
+          <strong>
+            {formatDate(
+              record?.date ||
+                record?.createdAt
+            )}
+          </strong>
+
+          <span>
+            {record?.result || "N/A"} ·{" "}
+            {totalScore} points
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close IPPT record details"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="section-record-stations">
+        <div>
+          <span>Push-ups</span>
+
+          <strong>
+            {pushups} reps
+          </strong>
+
+          <small>
+            {pushupScore} pts
+          </small>
+        </div>
+
+        <div>
+          <span>Sit-ups</span>
+
+          <strong>
+            {situps} reps
+          </strong>
+
+          <small>
+            {situpScore} pts
+          </small>
+        </div>
+
+        <div>
+          <span>2.4km</span>
+
+          <strong>{runtime}</strong>
+
+          <small>
+            {runScore} pts
+          </small>
+        </div>
+      </div>
+
+      <div className="section-record-summary">
+        <p>
+          <b>Push-ups:</b> {pushups} reps (
+          {pushupScore} pts)
+        </p>
+
+        <p>
+          <b>Sit-ups:</b> {situps} reps (
+          {situpScore} pts)
+        </p>
+
+        <p>
+          <b>2.4km:</b> {runtime} (
+          {runScore} pts)
+        </p>
+      </div>
     </div>
   );
 }
