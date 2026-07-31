@@ -1231,22 +1231,7 @@ function OfficialRecordBreakdown({
         </div>
       </div>
 
-      <div className="section-record-summary">
-        <p>
-          <b>Push-ups:</b> {pushups} reps (
-          {pushupScore} pts)
-        </p>
-
-        <p>
-          <b>Sit-ups:</b> {situps} reps (
-          {situpScore} pts)
-        </p>
-
-        <p>
-          <b>2.4km:</b> {runtime} (
-          {runScore} pts)
-        </p>
-      </div>
+      
     </div>
   );
 }
