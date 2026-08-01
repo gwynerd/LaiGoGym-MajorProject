@@ -13,6 +13,7 @@ import {
   ClipboardCheck,
   Clock3,
   Dumbbell,
+  Info,
   Loader2,
   RefreshCw,
   Sparkles,
@@ -72,7 +73,7 @@ const STEP_INFORMATION = [
     shortLabel: "Follow-Up",
     title: "Commander Follow-Up",
     description:
-      "Complete recommended actions and review the section again when needed.",
+      "Select completed actions and confirm them using the button below.",
   },
 ];
 
@@ -459,6 +460,17 @@ const getReadinessLevel = (score) => {
     className: "low",
   };
 };
+const STEP_INFO_MESSAGES = {
+  1: "Based on the latest practice IPPT score submitted by each personnel.",
+
+  2: "Personnel are prioritised using failed official results, declining practice trends and low readiness scores.",
+
+  3: "Gemini will analyse the latest practice and official IPPT data and provide a concise section-level summary.",
+
+  4: "The weekly focus is determined based on the section’s weakest components.",
+
+  5: "Complete recommended actions and review the section again when needed.",
+};
 
 function CommanderTraining() {
   const [commander, setCommander] = useState(null);
@@ -469,6 +481,7 @@ function CommanderTraining() {
     useState({});
 
   const [currentStep, setCurrentStep] = useState(1);
+  const [openStepInfo, setOpenStepInfo] = useState(null);
 
   const [aiBrief, setAiBrief] = useState(null);
   const [selectedActions, setSelectedActions] =
@@ -1110,21 +1123,25 @@ function CommanderTraining() {
   };
 
   const goToNextStep = () => {
+    setOpenStepInfo(null);
+
     setCurrentStep((current) =>
       Math.min(current + 1, TOTAL_STEPS)
     );
   };
 
   const goToPreviousStep = () => {
+    setOpenStepInfo(null);
+
     setCurrentStep((current) =>
       Math.max(current - 1, 1)
     );
   };
 
   const goToStep = (stepNumber) => {
+    setOpenStepInfo(null);
     setCurrentStep(stepNumber);
   };
-
   if (loading) {
     return (
       <div className="commander-page">
@@ -1160,10 +1177,10 @@ function CommanderTraining() {
               Training
             </h1>
 
-      
+
           </div>
 
-         
+
         </header>
 
         <main className="commander-content training-wizard-content">
@@ -1237,31 +1254,72 @@ function CommanderTraining() {
               Step {currentStep} of {TOTAL_STEPS}
             </span>
 
-            <h2>{currentStepInformation.title}</h2>
+            <div className="training-step-heading-row">
+              <h2>{currentStepInformation.title}</h2>
 
-            <p>
+              <button
+                type="button"
+                className="training-step-info-button"
+                onMouseEnter={() =>
+                  setOpenStepInfo(currentStep)
+                }
+                onMouseLeave={() =>
+                  setOpenStepInfo(null)
+                }
+                onClick={() =>
+                  setOpenStepInfo((current) =>
+                    current === currentStep
+                      ? null
+                      : currentStep
+                  )
+                }
+                aria-label={`View information about ${currentStepInformation.title}`}
+                aria-expanded={
+                  openStepInfo === currentStep
+                }
+              >
+                <Info size={16} />
+              </button>
+            </div>
+
+            <p className="training-step-description">
               {currentStepInformation.description}
             </p>
+
+            {openStepInfo === currentStep && (
+              <div
+                className="training-step-info-popup"
+                role="tooltip"
+                onMouseEnter={() =>
+                  setOpenStepInfo(currentStep)
+                }
+                onMouseLeave={() =>
+                  setOpenStepInfo(null)
+                }
+              >
+                {STEP_INFO_MESSAGES[currentStep]}
+              </div>
+            )}
           </section>
 
           {/* STEP 1 — SECTION READINESS */}
 
           {currentStep === 1 && (
             <section className="training-wizard-page">
-              <div className="training-readiness-overview">
+              <div className="training-readiness-centred">
                 <div
                   className={`training-readiness-ring ${readinessStatus.className}`}
                   style={{
                     background: `radial-gradient(
-                      circle,
-                      #ffffff 61%,
-                      transparent 62%
-                    ),
-                    conic-gradient(
-                      var(--readiness-colour)
-                      ${sectionReadinessScore}%,
-                      #e3eaf3 0
-                    )`,
+        circle,
+        #ffffff 61%,
+        transparent 62%
+      ),
+      conic-gradient(
+        var(--readiness-colour)
+        ${sectionReadinessScore}%,
+        #e3eaf3 0
+      )`,
                   }}
                 >
                   <div>
@@ -1275,36 +1333,22 @@ function CommanderTraining() {
                   </div>
                 </div>
 
-                <div className="training-readiness-summary">
-                  <span>Section Readiness</span>
+                <div className="training-readiness-legend">
+                  <span>
+                    <i className="high" />
+                    High
+                  </span>
 
-                  <strong>
-                    {readinessStatus.label}
-                  </strong>
+                  <span>
+                    <i className="moderate" />
+                    Moderate
+                  </span>
 
-                  <p>
-                    Based on the latest practice
-                    IPPT score submitted by each
-                    personnel.
-                  </p>
+                  <span>
+                    <i className="low" />
+                    Low
+                  </span>
                 </div>
-              </div>
-
-              <div className="training-readiness-legend">
-                <span>
-                  <i className="high" />
-                  High
-                </span>
-
-                <span>
-                  <i className="moderate" />
-                  Moderate
-                </span>
-
-                <span>
-                  <i className="low" />
-                  Low
-                </span>
               </div>
 
               <div className="training-simple-summary">
@@ -1326,7 +1370,7 @@ function CommanderTraining() {
               <div className="training-section-list">
                 <div className="training-list-heading">
                   <h3>Personnel Overview</h3>
-                  
+
                 </div>
 
                 {personnelAnalysis.length === 0 ? (
@@ -1408,6 +1452,7 @@ function CommanderTraining() {
                     </article>
                   ))
                 )}
+
               </div>
             </section>
           )}
@@ -1416,22 +1461,7 @@ function CommanderTraining() {
 
           {currentStep === 2 && (
             <section className="training-wizard-page">
-              <div className="training-priority-method">
-                <Target size={22} />
 
-                <div>
-                  <strong>
-                    Automatic Priority Ranking
-                  </strong>
-
-                  <p>
-                    Personnel are prioritised using
-                    failed official results,
-                    declining practice trends and
-                    low readiness scores.
-                  </p>
-                </div>
-              </div>
 
               <div className="training-priority-summary">
                 <div>
@@ -1592,12 +1622,6 @@ function CommanderTraining() {
                     Generate Commander Brief
                   </h3>
 
-                  <p>
-                    Gemini will analyse the latest
-                    practice and official IPPT data
-                    and provide a concise
-                    section-level summary.
-                  </p>
 
                   <button
                     type="button"
@@ -1723,23 +1747,22 @@ function CommanderTraining() {
 
           {currentStep === 4 && (
             <section className="training-wizard-page">
-              <div className="training-plan-focus">
-                <span>
-                  <Target size={24} />
-                </span>
+              <div className="training-plan-focus-card">
+                <div className="training-plan-focus-top">
+                  <span className="training-plan-focus-label">
+                    THIS WEEK&apos;S FOCUS
+                  </span>
+                </div>
 
-                <div>
-                  <p>This Week&apos;s Focus</p>
-
+                <div className="training-plan-focus-content">
                   <h3>
                     {weakestStationSummary.station}
                   </h3>
 
-                  <small>
-                    Identified as the most common
-                    weakest IPPT component in the
-                    section.
-                  </small>
+                  <p>
+                    Identified as the most common weakest IPPT
+                    component in the section.
+                  </p>
                 </div>
               </div>
 
@@ -1826,11 +1849,7 @@ function CommanderTraining() {
                   <div>
                     <h3>Recommended Actions</h3>
 
-                    <p>
-                      Select completed actions and
-                      confirm them using the button
-                      below.
-                    </p>
+
                   </div>
                 </div>
 
@@ -1934,7 +1953,7 @@ function CommanderTraining() {
                     actions have been completed.
                   </p>
 
-                  
+
                 </div>
               )}
             </section>
