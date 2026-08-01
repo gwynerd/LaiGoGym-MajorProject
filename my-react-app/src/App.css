@@ -8329,367 +8329,300 @@ body {
   overflow: visible;
 }
 
-/* =====================================================
-   GLOBAL RESPONSIVE APPLICATION LAYOUT
-   Keep this section at the END of App.css
-===================================================== */
-
-html,
-body,
-#root {
-  width: 100%;
-  min-width: 0;
-  min-height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
-}
-
-body {
-  background: #f5f8fc;
-}
-
-/* Prevent elements from making the page wider than the screen */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-img,
-video,
-canvas,
-svg {
-  max-width: 100%;
-}
-
-button,
-input,
-select,
-textarea {
-  max-width: 100%;
-  font: inherit;
-}
-
-/* Main page wrappers */
-.app,
-.commander-page,
-.login-page {
-  width: 100%;
-  min-width: 0;
-  min-height: 100vh;
-  min-height: 100dvh;
-
-  display: block;
-
-  margin: 0;
-  padding: 0;
-
-  background: #f5f8fc;
-}
-
-/* Disable every fake phone frame */
-.phone,
-.commander-phone,
-.login-phone {
-  width: 100%;
-  max-width: none;
-  min-width: 0;
-
-  height: auto;
-  min-height: 100vh;
-  min-height: 100dvh;
-
-  margin: 0;
-  padding: 0;
-
+.training-completion-screen {
   position: relative;
 
-  overflow: visible;
+  width: 100%;
+  min-height: 470px;
 
-  background: #f5f8fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+  padding: 38px 18px 80px;
+
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-/* Normal webpage scrolling */
-.phone-content,
-.commander-content,
-.commander-home-scroll,
-.login-content {
+.training-completion-content {
+  position: relative;
+  z-index: 3;
+
   width: 100%;
-  max-width: none;
-  min-width: 0;
 
-  height: auto;
-  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 
+  text-align: center;
+}
+
+.training-completion-icon {
+  width: 86px;
+  height: 86px;
+
+  display: grid;
+  place-items: center;
+
+  margin-bottom: 20px;
+
+  border-radius: 50%;
+
+  background: #e8f7ed;
+  color: #188038;
+
+  box-shadow:
+    0 8px 20px rgba(24, 128, 56, 0.14);
+}
+
+.training-completion-eyebrow {
+  margin: 0 0 10px;
+
+  color: #188038;
+
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.training-completion-content h2 {
   margin: 0;
 
-  overflow: visible;
+  color: #062b55;
 
-  background: #f5f8fc;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
-/* Shared content widths */
-.phone-content,
-.commander-content,
-.commander-home-content,
-.training-content {
-  width: min(100%, 1200px);
-  margin-left: auto;
-  margin-right: auto;
+.training-completion-message {
+  max-width: 310px;
 
-  padding-left: 24px;
-  padding-right: 24px;
-  padding-bottom: 110px;
+  margin: 12px auto 0;
+
+  color: #55708f;
+
+  font-size: 15px;
+  line-height: 1.55;
 }
 
-/* Remove fake mobile status bars everywhere */
-.status-bar,
-.commander-status-bar,
-.login-status {
-  display: none;
+.training-completion-date {
+  margin: 10px 0 0;
+
+  color: #8091ad;
+
+  font-size: 12px;
+  font-weight: 600;
 }
 
-/* Keep headers full-width */
-.dashboard-header,
-.commander-header,
-.commander-home-hero {
+.training-completion-summary {
   width: 100%;
+
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  margin-top: 28px;
+
+  border-top: 1px solid #d7e2ed;
+  border-bottom: 1px solid #d7e2ed;
 }
 
-/* Fixed personnel bottom navigation */
-.bottom-nav {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-
-  width: 100%;
-  min-height: 82px;
-
-  padding:
-    0 max(8px, env(safe-area-inset-right))
-    env(safe-area-inset-bottom)
-    max(8px, env(safe-area-inset-left));
-
-  border-radius: 24px 24px 0 0;
-
-  z-index: 1000;
-}
-
-/* Fixed commander bottom navigation */
-.commander-bottom-nav {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-
-  width: 100%;
-  min-height: 78px;
-
-  padding:
-    0 max(8px, env(safe-area-inset-right))
-    env(safe-area-inset-bottom)
-    max(8px, env(safe-area-inset-left));
-
-  z-index: 1000;
-}
-
-/* Prevent cards and grid children from overflowing */
-.ippt-grid > *,
-.commander-home-quick-grid > *,
-.training-summary-grid > *,
-.commander-stats-grid > *,
-.coach-grid > *,
-.training-review-grid > * {
+.training-completion-summary > div {
   min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  padding: 18px 8px;
 }
 
-/* Tables can scroll horizontally when necessary */
-.commander-table-scroll,
-.table-scroll,
-.responsive-table {
+.training-completion-summary > div + div {
+  border-left: 1px solid #d7e2ed;
+}
+
+.training-completion-summary strong {
+  color: #188038;
+
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.training-completion-summary span {
+  margin-top: 5px;
+
+  color: #64748b;
+
+  font-size: 11px;
+}
+
+.training-complete-again-button {
   width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  min-height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  margin-top: 28px;
+  padding: 12px 18px;
+
+  border: 1px solid #0b5c9e;
+  border-radius: 13px;
+
+  background: #ffffff;
+  color: #0b5c9e;
+
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+
+  cursor: pointer;
 }
 
-/* Tablet and desktop */
-@media (min-width: 769px) {
-  .phone-content,
-  .commander-content,
-  .commander-home-content,
-  .training-content {
-    padding-left: 32px;
-    padding-right: 32px;
+.training-complete-again-button:hover {
+  background: #edf6ff;
+}
+
+
+/* =========================================================
+   DONE BUTTON
+========================================================= */
+
+.training-done-button:not(:disabled) {
+  background: #188038;
+}
+
+.training-done-button:not(:disabled):hover {
+  background: #126b30;
+}
+
+.training-done-button:disabled {
+  background: #dce4ec;
+  color: #98a6b5;
+
+  cursor: not-allowed;
+}
+
+
+/* =========================================================
+   COMPLETED PROGRESS INDICATOR
+========================================================= */
+
+.training-wizard-step-labels span.completed {
+  color: #188038;
+  font-weight: 700;
+}
+
+.training-wizard-step-dot:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+
+/* =========================================================
+   CONFETTI
+========================================================= */
+
+.training-confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.training-confetti span {
+  position: absolute;
+  top: -24px;
+  left: var(--confetti-x);
+
+  width: 8px;
+  height: 14px;
+
+  border-radius: 2px;
+
+  background: #188038;
+
+  opacity: 0;
+
+  transform:
+    rotate(var(--confetti-rotation));
+
+  animation:
+    trainingConfettiFall
+    var(--confetti-duration)
+    ease-in
+    var(--confetti-delay)
+    infinite;
+}
+
+.training-confetti span:nth-child(4n + 1) {
+  background: #0b5c9e;
+}
+
+.training-confetti span:nth-child(4n + 2) {
+  background: #d4a100;
+}
+
+.training-confetti span:nth-child(4n + 3) {
+  background: #d93025;
+}
+
+.training-confetti span:nth-child(3n) {
+  width: 10px;
+  height: 10px;
+
+  border-radius: 50%;
+}
+
+@keyframes trainingConfettiFall {
+  0% {
+    top: -24px;
+
+    opacity: 0;
+
+    transform:
+      translateX(0)
+      rotate(var(--confetti-rotation));
   }
 
-  .ippt-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  10% {
+    opacity: 1;
   }
 
-  .commander-home-quick-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  55% {
+    transform:
+      translateX(24px)
+      rotate(
+        calc(
+          var(--confetti-rotation) + 180deg
+        )
+      );
   }
 
-  .training-summary-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+  100% {
+    top: 105%;
 
-  .commander-stats-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+    opacity: 0;
 
-  .training-review-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    transform:
+      translateX(-18px)
+      rotate(
+        calc(
+          var(--confetti-rotation) + 420deg
+        )
+      );
   }
 }
 
-/* Phones and small tablets */
-@media (max-width: 768px) {
-  .phone-content,
-  .commander-content,
-  .commander-home-content,
-  .training-content {
-    width: 100%;
-    padding-left: 16px;
-    padding-right: 16px;
-    padding-bottom: 110px;
-  }
-
-  .dashboard-header,
-  .commander-header,
-  .commander-home-hero {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
-  .commander-header {
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .coach-toolbar,
-  .coach-title-row,
-  .selected-plan-banner {
-    align-items: stretch;
-  }
-}
-
-/* Standard mobile phones */
-@media (max-width: 560px) {
-  .commander-header-title {
-    font-size: 20px;
-  }
-
-  .commander-profile-mini {
-    min-width: 40px;
-    padding: 8px;
-    justify-content: center;
-  }
-
-  .commander-profile-mini span {
+@media (prefers-reduced-motion: reduce) {
+  .training-confetti span {
+    animation: none;
     display: none;
-  }
-
-  .commander-home-profile-row {
-    align-items: flex-start;
-  }
-
-  .commander-home-avatar {
-    width: 58px;
-    height: 58px;
-  }
-
-  .commander-home-profile-row h1 {
-    font-size: 21px;
-  }
-
-  .commander-home-ippt-layout,
-  .commander-home-readiness-layout {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .commander-home-donut,
-  .commander-home-empty-donut,
-  .commander-home-readiness-circle {
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .training-person-header,
-  .training-review-person {
-    align-items: flex-start;
-  }
-
-  .training-person-stats {
-    grid-template-columns: 1fr;
-  }
-
-  .training-review-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .coach-title-row,
-  .selected-plan-banner {
-    flex-direction: column;
-  }
-
-  .coach-header-actions {
-    width: 100%;
-  }
-
-  .coach-header-actions .coach-btn {
-    flex: 1;
-  }
-
-  .selected-plan-meta {
-    max-width: none;
-    text-align: left;
-  }
-
-  .training-count-badge {
-    position: static;
-    transform: none;
-    flex-shrink: 0;
-  }
-
-  .commander-table {
-    overflow-x: auto;
-  }
-}
-
-/* Very small phones */
-@media (max-width: 380px) {
-  .phone-content,
-  .commander-content,
-  .commander-home-content,
-  .training-content {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-
-  .ippt-grid,
-  .commander-home-quick-grid,
-  .training-summary-grid,
-  .commander-stats-grid,
-  .coach-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .nav-label,
-  .nav-item,
-  .commander-nav-item {
-    font-size: 9px;
-  }
-
-  .commander-nav-item {
-    width: auto;
-    min-width: 46px;
   }
 }

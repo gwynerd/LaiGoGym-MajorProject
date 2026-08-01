@@ -472,6 +472,36 @@ const STEP_INFO_MESSAGES = {
   5: "Complete recommended actions and review the section again when needed.",
 };
 
+const getTrainingCompletionKey = () => {
+  const currentUser = getCurrentUser();
+
+  const commanderID =
+    currentUser?.userID ||
+    currentUser?.id ||
+    "unknown";
+
+  return `commanderTrainingCompleted_${commanderID}`;
+};
+
+const getSavedTrainingCompletion = () => {
+  try {
+    const savedValue = localStorage.getItem(
+      getTrainingCompletionKey()
+    );
+
+    if (!savedValue) return null;
+
+    return JSON.parse(savedValue);
+  } catch (error) {
+    console.error(
+      "Unable to read saved training completion:",
+      error
+    );
+
+    return null;
+  }
+};
+
 function CommanderTraining() {
   const [commander, setCommander] = useState(null);
   const [personnel, setPersonnel] = useState([]);
@@ -482,6 +512,11 @@ function CommanderTraining() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [openStepInfo, setOpenStepInfo] = useState(null);
+  const [trainingCompleted, setTrainingCompleted] =
+    useState(false);
+
+  const [trainingCompletedAt, setTrainingCompletedAt] =
+    useState("");
 
   const [aiBrief, setAiBrief] = useState(null);
   const [selectedActions, setSelectedActions] =
@@ -569,6 +604,19 @@ function CommanderTraining() {
   };
 
   useEffect(() => {
+    const savedCompletion =
+      getSavedTrainingCompletion();
+
+    if (savedCompletion?.completed) {
+      setTrainingCompleted(true);
+      setTrainingCompletedAt(
+        savedCompletion.completedAt || ""
+      );
+
+      // Keep the progress indicator on Step 5.
+      setCurrentStep(TOTAL_STEPS);
+    }
+
     loadTrainingData();
   }, []);
 
@@ -962,6 +1010,8 @@ function CommanderTraining() {
       (action) =>
         Boolean(selectedActions[action.id])
     ).length;
+  const allActionsCompleted =
+    activeRecommendedActions.length === 0;
 
   const toggleAction = (actionID) => {
     setSelectedActions((current) => ({
@@ -969,6 +1019,7 @@ function CommanderTraining() {
       [actionID]: !current[actionID],
     }));
   };
+
 
   const completeSelectedActions = () => {
     const selectedIDs =
@@ -1016,6 +1067,76 @@ function CommanderTraining() {
     } finally {
       setRefreshing(false);
     }
+  };
+  const finishTraining = () => {
+    /*
+      Do not allow completion while any recommended
+      action is still visible.
+    */
+    if (activeRecommendedActions.length > 0) {
+      return;
+    }
+
+    const completedAt =
+      new Date().toISOString();
+
+    const completionData = {
+      completed: true,
+      completedAt,
+    };
+
+    localStorage.setItem(
+      getTrainingCompletionKey(),
+      JSON.stringify(completionData)
+    );
+
+    setTrainingCompleted(true);
+    setTrainingCompletedAt(completedAt);
+    setCurrentStep(TOTAL_STEPS);
+    setOpenStepInfo(null);
+
+    window.setTimeout(() => {
+      document
+        .querySelector(
+          ".training-completion-screen"
+        )
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+    }, 50);
+  };
+
+  const completeTrainingAgain = async () => {
+    localStorage.removeItem(
+      getTrainingCompletionKey()
+    );
+
+    setTrainingCompleted(false);
+    setTrainingCompletedAt("");
+
+    setCurrentStep(1);
+    setOpenStepInfo(null);
+
+    setSelectedActions({});
+    setDismissedActions({});
+    setAiBrief(null);
+    setAiError("");
+
+    await loadTrainingData({
+      showLoading: false,
+    });
+
+    window.setTimeout(() => {
+      document
+        .querySelector(
+          ".training-wizard-progress"
+        )
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+    }, 50);
   };
 
   const generateBrief = async () => {
@@ -1198,31 +1319,39 @@ function CommanderTraining() {
                   <React.Fragment key={step.number}>
                     <button
                       type="button"
-                      className={`training-wizard-step-dot ${currentStep === step.number
+                      className={`training-wizard-step-dot ${!trainingCompleted &&
+                        currentStep === step.number
                         ? "active"
                         : ""
-                        } ${currentStep > step.number
+                        } ${trainingCompleted ||
+                          currentStep > step.number
                           ? "completed"
                           : ""
                         }`}
-                      onClick={() =>
-                        goToStep(step.number)
+                      onClick={() => {
+                        if (!trainingCompleted) {
+                          goToStep(step.number);
+                        }
+                      }}
+                      disabled={trainingCompleted}
+                      aria-label={
+                        trainingCompleted
+                          ? `Completed step ${step.number}: ${step.title}`
+                          : `Go to step ${step.number}: ${step.title}`
                       }
-                      aria-label={`Go to step ${step.number}: ${step.title}`}
                     >
-                      {currentStep > step.number ? (
+                      {trainingCompleted ||
+                        currentStep > step.number ? (
                         <Check size={14} />
                       ) : (
                         step.number
                       )}
                     </button>
-
                     {index <
-                      STEP_INFORMATION.length -
-                      1 && (
+                      STEP_INFORMATION.length - 1 && (
                         <span
-                          className={`training-wizard-line ${currentStep >
-                            step.number
+                          className={`training-wizard-line ${trainingCompleted ||
+                            currentStep > step.number
                             ? "completed"
                             : ""
                             }`}
@@ -1238,9 +1367,11 @@ function CommanderTraining() {
                 <span
                   key={step.number}
                   className={
-                    currentStep === step.number
-                      ? "active"
-                      : ""
+                    trainingCompleted
+                      ? "completed"
+                      : currentStep === step.number
+                        ? "active"
+                        : ""
                   }
                 >
                   {step.shortLabel}
@@ -1248,69 +1379,73 @@ function CommanderTraining() {
               ))}
             </div>
           </section>
+          {!trainingCompleted && (
+            <section className="training-wizard-intro">
+              <span>
+                Step {currentStep} of {TOTAL_STEPS}
+              </span>
 
-          <section className="training-wizard-intro">
-            <span>
-              Step {currentStep} of {TOTAL_STEPS}
-            </span>
+              <div className="training-step-heading-row">
+                <h2>
+                  {currentStepInformation.title}
+                </h2>
 
-            <div className="training-step-heading-row">
-              <h2>{currentStepInformation.title}</h2>
-
-              <button
-                type="button"
-                className="training-step-info-button"
-                onMouseEnter={() =>
-                  setOpenStepInfo(currentStep)
-                }
-                onMouseLeave={() =>
-                  setOpenStepInfo(null)
-                }
-                onClick={() =>
-                  setOpenStepInfo((current) =>
-                    current === currentStep
-                      ? null
-                      : currentStep
-                  )
-                }
-                aria-label={`View information about ${currentStepInformation.title}`}
-                aria-expanded={
-                  openStepInfo === currentStep
-                }
-              >
-                <Info size={16} />
-              </button>
-            </div>
-
-            <p className="training-step-description">
-              {currentStepInformation.description}
-            </p>
-
-            {openStepInfo === currentStep && (
-              <div
-                className="training-step-info-popup"
-                role="tooltip"
-                onMouseEnter={() =>
-                  setOpenStepInfo(currentStep)
-                }
-                onMouseLeave={() =>
-                  setOpenStepInfo(null)
-                }
-              >
-                {STEP_INFO_MESSAGES[currentStep]}
+                <button
+                  type="button"
+                  className="training-step-info-button"
+                  onMouseEnter={() =>
+                    setOpenStepInfo(currentStep)
+                  }
+                  onMouseLeave={() =>
+                    setOpenStepInfo(null)
+                  }
+                  onClick={() =>
+                    setOpenStepInfo((current) =>
+                      current === currentStep
+                        ? null
+                        : currentStep
+                    )
+                  }
+                  aria-label={`View information about ${currentStepInformation.title}`}
+                  aria-expanded={
+                    openStepInfo === currentStep
+                  }
+                >
+                  <Info size={16} />
+                </button>
               </div>
-            )}
-          </section>
+
+              <p className="training-step-description">
+                {currentStepInformation.description}
+              </p>
+
+              {openStepInfo === currentStep && (
+                <div
+                  className="training-step-info-popup"
+                  role="tooltip"
+                  onMouseEnter={() =>
+                    setOpenStepInfo(currentStep)
+                  }
+                  onMouseLeave={() =>
+                    setOpenStepInfo(null)
+                  }
+                >
+                  {STEP_INFO_MESSAGES[currentStep]}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* STEP 1 — SECTION READINESS */}
 
-          {currentStep === 1 && (
-            <section className="training-wizard-page">
-              <div className="training-readiness-centred">
-                <div
-                  className={`training-readiness-ring ${readinessStatus.className}`}
-                  style={{
-                    background: `radial-gradient(
+          {!trainingCompleted &&
+            currentStep === 1 && (
+              <section className="training-wizard-page">
+                <div className="training-readiness-centred">
+                  <div
+                    className={`training-readiness-ring ${readinessStatus.className}`}
+                    style={{
+                      background: `radial-gradient(
         circle,
         #ffffff 61%,
         transparent 62%
@@ -1320,667 +1455,769 @@ function CommanderTraining() {
         ${sectionReadinessScore}%,
         #e3eaf3 0
       )`,
-                  }}
-                >
-                  <div>
-                    <strong>
-                      {sectionReadinessScore}%
-                    </strong>
+                    }}
+                  >
+                    <div>
+                      <strong>
+                        {sectionReadinessScore}%
+                      </strong>
+
+                      <span>
+                        {readinessStatus.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="training-readiness-legend">
+                    <span>
+                      <i className="high" />
+                      High
+                    </span>
 
                     <span>
-                      {readinessStatus.label}
+                      <i className="moderate" />
+                      Moderate
+                    </span>
+
+                    <span>
+                      <i className="low" />
+                      Low
                     </span>
                   </div>
                 </div>
 
-                <div className="training-readiness-legend">
-                  <span>
-                    <i className="high" />
-                    High
-                  </span>
-
-                  <span>
-                    <i className="moderate" />
-                    Moderate
-                  </span>
-
-                  <span>
-                    <i className="low" />
-                    Low
-                  </span>
-                </div>
-              </div>
-
-              <div className="training-simple-summary">
-                <div>
-                  <span>Total Personnel</span>
-                  <strong>
-                    {personnelAnalysis.length}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Requires Attention</span>
-                  <strong>
-                    {attentionPersonnel.length}
-                  </strong>
-                </div>
-              </div>
-
-              <div className="training-section-list">
-                <div className="training-list-heading">
-                  <h3>Personnel Overview</h3>
-
-                </div>
-
-                {personnelAnalysis.length === 0 ? (
-                  <div className="training-empty-state">
-                    <Users size={30} />
+                <div className="training-simple-summary">
+                  <div>
+                    <span>Total Personnel</span>
                     <strong>
-                      No assigned personnel
+                      {personnelAnalysis.length}
                     </strong>
                   </div>
-                ) : (
-                  personnelAnalysis.map((person) => (
-                    <article
-                      className="training-personnel-row"
-                      key={person.userID}
-                    >
-                      <div className="training-personnel-identity">
-                        <div className="training-personnel-avatar">
-                          {person.photoURL ? (
-                            <img
-                              src={person.photoURL}
-                              alt={`${person.displayName} profile`}
-                            />
-                          ) : (
-                            <UserRound size={21} />
-                          )}
-                        </div>
 
-                        <div>
-                          <h3>
-                            {person.displayName}
-                          </h3>
-
-                          <p>
-                            {person.rank ||
-                              "Personnel"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="training-personnel-values">
-                        <div>
-                          <span>Practice</span>
-                          <strong>
-                            {person.latestPractice
-                              ? getTotalScore(
-                                person.latestPractice
-                              )
-                              : "N/A"}
-                          </strong>
-                        </div>
-
-                        <div>
-                          <span>Official</span>
-                          <strong>
-                            {person.latestOfficial
-                              ? getResult(
-                                person.latestOfficial
-                              )
-                              : "N/A"}
-                          </strong>
-                        </div>
-
-                        <div>
-                          <span>Trend</span>
-                          <strong
-                            className={`training-trend-${person.trend.type}`}
-                          >
-                            {person.trend.label}
-                          </strong>
-                        </div>
-                      </div>
-
-                      <div className="training-personnel-weakness">
-                        <span>Lowest station</span>
-                        <strong>
-                          {person.weakestComponent}
-                        </strong>
-                      </div>
-                    </article>
-                  ))
-                )}
-
-              </div>
-            </section>
-          )}
-
-          {/* STEP 2 — PRIORITY PERSONNEL */}
-
-          {currentStep === 2 && (
-            <section className="training-wizard-page">
-
-
-              <div className="training-priority-summary">
-                <div>
-                  <AlertTriangle size={18} />
-                  <span>Failed Official</span>
-                  <strong>
-                    {failedOfficialPersonnel.length}
-                  </strong>
-                </div>
-
-                <div>
-                  <TrendingDown size={18} />
-                  <span>Declining</span>
-                  <strong>
-                    {decliningPersonnel.length}
-                  </strong>
-                </div>
-
-                <div>
-                  <Target size={18} />
-                  <span>High Priority</span>
-                  <strong>
-                    {highPriorityPersonnel.length}
-                  </strong>
-                </div>
-              </div>
-
-              <div className="training-section-list">
-                <div className="training-list-heading">
-                  <h3>Priority Ranking</h3>
-                  <span>
-                    Highest priority first
-                  </span>
-                </div>
-
-                {attentionPersonnel.length === 0 ? (
-                  <div className="training-empty-state">
-                    <CheckCircle2 size={34} />
-
+                  <div>
+                    <span>Requires Attention</span>
                     <strong>
-                      No urgent concerns
+                      {attentionPersonnel.length}
                     </strong>
-
-                    <p>
-                      No high- or moderate-priority
-                      personnel were identified.
-                    </p>
                   </div>
-                ) : (
-                  attentionPersonnel.map(
-                    (person, index) => (
+                </div>
+
+                <div className="training-section-list">
+                  <div className="training-list-heading">
+                    <h3>Personnel Overview</h3>
+
+                  </div>
+
+                  {personnelAnalysis.length === 0 ? (
+                    <div className="training-empty-state">
+                      <Users size={30} />
+                      <strong>
+                        No assigned personnel
+                      </strong>
+                    </div>
+                  ) : (
+                    personnelAnalysis.map((person) => (
                       <article
-                        className="training-priority-row"
+                        className="training-personnel-row"
                         key={person.userID}
                       >
-                        <div className="training-priority-rank">
-                          {index + 1}
+                        <div className="training-personnel-identity">
+                          <div className="training-personnel-avatar">
+                            {person.photoURL ? (
+                              <img
+                                src={person.photoURL}
+                                alt={`${person.displayName} profile`}
+                              />
+                            ) : (
+                              <UserRound size={21} />
+                            )}
+                          </div>
+
+                          <div>
+                            <h3>
+                              {person.displayName}
+                            </h3>
+
+                            <p>
+                              {person.rank ||
+                                "Personnel"}
+                            </p>
+                          </div>
                         </div>
 
-                        <div className="training-priority-main">
-                          <div className="training-priority-top">
-                            <div>
-                              <h3>
-                                {person.displayName}
-                              </h3>
-
-                              <p>
-                                {person.rank ||
-                                  "Personnel"}
-                              </p>
-                            </div>
-
-                            <span
-                              className={`training-priority-badge ${person.priority.className}`}
-                            >
-                              {person.priority.level}
-                            </span>
-                          </div>
-
-                          <div className="training-priority-metrics">
-                            <span>
-                              Readiness{" "}
-                              <strong>
-                                {person.latestPractice
-                                  ? getTotalScore(
-                                    person.latestPractice
-                                  )
-                                  : Number(
-                                    person.readiness ||
-                                    0
-                                  )}
-                                %
-                              </strong>
-                            </span>
-
-                            <span>
-                              Official{" "}
-                              <strong>
-                                {person.latestOfficial
-                                  ? getResult(
-                                    person.latestOfficial
-                                  )
-                                  : "N/A"}
-                              </strong>
-                            </span>
-
-                            <span>
-                              Trend{" "}
-                              <strong
-                                className={`training-trend-${person.trend.type}`}
-                              >
-                                {person.trend.label}
-                              </strong>
-                            </span>
-                          </div>
-
-                          <div className="training-priority-concern">
-                            <span>Main concern</span>
-
+                        <div className="training-personnel-values">
+                          <div>
+                            <span>Practice</span>
                             <strong>
-                              {person.weakestComponent}
+                              {person.latestPractice
+                                ? getTotalScore(
+                                  person.latestPractice
+                                )
+                                : "N/A"}
                             </strong>
                           </div>
 
-                          <ul className="training-priority-reasons">
-                            {person.priority.reasons
-                              .slice(0, 3)
-                              .map((reason) => (
-                                <li key={reason}>
-                                  {reason}
-                                </li>
-                              ))}
-                          </ul>
+                          <div>
+                            <span>Official</span>
+                            <strong>
+                              {person.latestOfficial
+                                ? getResult(
+                                  person.latestOfficial
+                                )
+                                : "N/A"}
+                            </strong>
+                          </div>
+
+                          <div>
+                            <span>Trend</span>
+                            <strong
+                              className={`training-trend-${person.trend.type}`}
+                            >
+                              {person.trend.label}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div className="training-personnel-weakness">
+                          <span>Lowest station</span>
+                          <strong>
+                            {person.weakestComponent}
+                          </strong>
                         </div>
                       </article>
+                    ))
+                  )}
+
+                </div>
+              </section>
+            )}
+
+          {/* STEP 2 — PRIORITY PERSONNEL */}
+
+          {!trainingCompleted &&
+            currentStep === 2 && (
+              <section className="training-wizard-page">
+
+
+                <div className="training-priority-summary">
+                  <div>
+                    <AlertTriangle size={18} />
+                    <span>Failed Official</span>
+                    <strong>
+                      {failedOfficialPersonnel.length}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <TrendingDown size={18} />
+                    <span>Declining</span>
+                    <strong>
+                      {decliningPersonnel.length}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <Target size={18} />
+                    <span>High Priority</span>
+                    <strong>
+                      {highPriorityPersonnel.length}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="training-section-list">
+                  <div className="training-list-heading">
+                    <h3>Priority Ranking</h3>
+                    <span>
+                      Highest priority first
+                    </span>
+                  </div>
+
+                  {attentionPersonnel.length === 0 ? (
+                    <div className="training-empty-state">
+                      <CheckCircle2 size={34} />
+
+                      <strong>
+                        No urgent concerns
+                      </strong>
+
+                      <p>
+                        No high- or moderate-priority
+                        personnel were identified.
+                      </p>
+                    </div>
+                  ) : (
+                    attentionPersonnel.map(
+                      (person, index) => (
+                        <article
+                          className="training-priority-row"
+                          key={person.userID}
+                        >
+                          <div className="training-priority-rank">
+                            {index + 1}
+                          </div>
+
+                          <div className="training-priority-main">
+                            <div className="training-priority-top">
+                              <div>
+                                <h3>
+                                  {person.displayName}
+                                </h3>
+
+                                <p>
+                                  {person.rank ||
+                                    "Personnel"}
+                                </p>
+                              </div>
+
+                              <span
+                                className={`training-priority-badge ${person.priority.className}`}
+                              >
+                                {person.priority.level}
+                              </span>
+                            </div>
+
+                            <div className="training-priority-metrics">
+                              <span>
+                                Readiness{" "}
+                                <strong>
+                                  {person.latestPractice
+                                    ? getTotalScore(
+                                      person.latestPractice
+                                    )
+                                    : Number(
+                                      person.readiness ||
+                                      0
+                                    )}
+                                  %
+                                </strong>
+                              </span>
+
+                              <span>
+                                Official{" "}
+                                <strong>
+                                  {person.latestOfficial
+                                    ? getResult(
+                                      person.latestOfficial
+                                    )
+                                    : "N/A"}
+                                </strong>
+                              </span>
+
+                              <span>
+                                Trend{" "}
+                                <strong
+                                  className={`training-trend-${person.trend.type}`}
+                                >
+                                  {person.trend.label}
+                                </strong>
+                              </span>
+                            </div>
+
+                            <div className="training-priority-concern">
+                              <span>Main concern</span>
+
+                              <strong>
+                                {person.weakestComponent}
+                              </strong>
+                            </div>
+
+                            <ul className="training-priority-reasons">
+                              {person.priority.reasons
+                                .slice(0, 3)
+                                .map((reason) => (
+                                  <li key={reason}>
+                                    {reason}
+                                  </li>
+                                ))}
+                            </ul>
+                          </div>
+                        </article>
+                      )
                     )
+                  )}
+                </div>
+              </section>
+            )}
+
+          {/* STEP 3 — AI DECISION BRIEF */}
+          {!trainingCompleted &&
+            currentStep === 3 && (
+              <section className="training-wizard-page">
+                {aiError && (
+                  <p className="ai-error">{aiError}</p>
+                )}
+
+                {!aiBrief ? (
+                  <div className="training-ai-start">
+                    <span>
+                      <Brain size={34} />
+                    </span>
+
+                    <h3>
+                      Generate Commander Brief
+                    </h3>
+
+
+                    <button
+                      type="button"
+                      className="training-primary-button"
+                      onClick={generateBrief}
+                      disabled={
+                        aiLoading ||
+                        personnelAnalysis.length === 0
+                      }
+                    >
+                      {aiLoading ? (
+                        <>
+                          <Loader2
+                            size={18}
+                            className="training-spin"
+                          />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={18} />
+                          Generate AI Brief
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="training-ai-brief">
+                    <div className="training-ai-section">
+                      <span className="training-ai-section-icon summary">
+                        <Brain size={18} />
+                      </span>
+
+                      <div>
+                        <h3>Section Summary</h3>
+                        <p>{aiBrief.summary}</p>
+                      </div>
+                    </div>
+
+                    <div className="training-ai-section positive">
+                      <span className="training-ai-section-icon">
+                        <TrendingUp size={18} />
+                      </span>
+
+                      <div>
+                        <h3>
+                          Positive Observation
+                        </h3>
+
+                        <p>
+                          {aiBrief.positiveObservation}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="training-ai-section concern">
+                      <span className="training-ai-section-icon">
+                        <AlertTriangle size={18} />
+                      </span>
+
+                      <div>
+                        <h3>Main Concern</h3>
+                        <p>{aiBrief.mainConcern}</p>
+                      </div>
+                    </div>
+
+                    {aiBrief.actions?.length > 0 && (
+                      <div className="training-ai-recommendations">
+                        <h3>AI Recommendations</h3>
+
+                        {aiBrief.actions.map(
+                          (action, index) => (
+                            <div
+                              className="training-ai-recommendation-row"
+                              key={`${action.title}-${index}`}
+                            >
+                              <CheckCircle2 size={18} />
+
+                              <div>
+                                <strong>
+                                  {action.title}
+                                </strong>
+
+                                {action.description && (
+                                  <p>
+                                    {action.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className="training-secondary-button"
+                      onClick={generateBrief}
+                      disabled={aiLoading}
+                    >
+                      {aiLoading ? (
+                        <>
+                          <Loader2
+                            size={17}
+                            className="training-spin"
+                          />
+                          Regenerating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={17} />
+                          Regenerate Brief
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
+
+          {/* STEP 4 — TRAINING PLAN */}
+          {!trainingCompleted &&
+            currentStep === 4 && (
+              <section className="training-wizard-page">
+                <div className="training-plan-focus-card">
+                  <div className="training-plan-focus-top">
+                    <span className="training-plan-focus-label">
+                      THIS WEEK&apos;S FOCUS
+                    </span>
+                  </div>
+
+                  <div className="training-plan-focus-content">
+                    <h3>
+                      {weakestStationSummary.station}
+                    </h3>
+
+                    <p>
+                      Identified as the most common weakest IPPT
+                      component in the section.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="training-weekly-plan">
+                  {weeklyTrainingPlan.map(
+                    (session, index) => {
+                      const SessionIcon =
+                        session.icon;
+
+                      return (
+                        <article
+                          className="training-session-row"
+                          key={session.day}
+                        >
+                          <div className="training-session-marker">
+                            <span>{index + 1}</span>
+
+                            {index <
+                              weeklyTrainingPlan.length -
+                              1 && <i />}
+                          </div>
+
+                          <div className="training-session-content">
+                            <div className="training-session-day">
+                              {session.day}
+                            </div>
+
+                            <div className="training-session-heading">
+                              <SessionIcon size={19} />
+
+                              <h3>
+                                {session.title}
+                              </h3>
+                            </div>
+
+                            <p>
+                              {session.description}
+                            </p>
+                          </div>
+                        </article>
+                      );
+                    }
+                  )}
+                </div>
+
+                <div className="training-priority-order">
+                  <h3>Training Priority</h3>
+
+                  {Object.entries(
+                    weakestStationSummary.counts
+                  )
+                    .sort((a, b) => b[1] - a[1])
+                    .map(
+                      ([station, count], index) => (
+                        <div key={station}>
+                          <span>
+                            {index === 0
+                              ? "🥇"
+                              : index === 1
+                                ? "🥈"
+                                : "🥉"}
+                          </span>
+
+                          <p>{station}</p>
+
+                          <strong>
+                            {count} personnel
+                          </strong>
+                        </div>
+                      )
+                    )}
+                </div>
+              </section>
+            )}
+
+          {/* STEP 5 — COMMANDER FOLLOW-UP */}
+          {!trainingCompleted &&
+            currentStep === 5 && (
+              <section className="training-wizard-page">
+                <div className="training-follow-up-heading">
+                  <div>
+                    <ClipboardCheck size={23} />
+
+                    <div>
+                      <h3>Recommended Actions</h3>
+
+
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="training-refresh-icon-button"
+                    onClick={refreshRecommendedActions}
+                    disabled={refreshing}
+                    aria-label="Refresh recommended actions"
+                    title="Refresh recommended actions"
+                  >
+                    <RefreshCw
+                      size={18}
+                      className={
+                        refreshing
+                          ? "training-spin"
+                          : ""
+                      }
+                    />
+                  </button>
+                </div>
+
+                {activeRecommendedActions.length >
+                  0 ? (
+                  <>
+                    <div className="training-checklist">
+                      {activeRecommendedActions.map(
+                        (action) => {
+                          const ActionIcon =
+                            action.icon;
+
+                          const selected = Boolean(
+                            selectedActions[action.id]
+                          );
+
+                          return (
+                            <button
+                              type="button"
+                              className={`training-checklist-item ${selected
+                                ? "completed"
+                                : ""
+                                }`}
+                              key={action.id}
+                              onClick={() =>
+                                toggleAction(action.id)
+                              }
+                              aria-pressed={selected}
+                            >
+                              <span className="training-check-box">
+                                {selected && (
+                                  <Check size={15} />
+                                )}
+                              </span>
+
+                              <span className="training-action-icon">
+                                <ActionIcon size={18} />
+                              </span>
+
+                              <span className="training-action-copy">
+                                <strong>
+                                  {action.title}
+                                </strong>
+
+                                <small>
+                                  {action.description}
+                                </small>
+                              </span>
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="training-complete-selected-button"
+                      onClick={completeSelectedActions}
+                      disabled={
+                        selectedActionCount === 0
+                      }
+                    >
+                      <CheckCircle2 size={18} />
+
+                      {selectedActionCount > 0
+                        ? `Complete Selected (${selectedActionCount})`
+                        : "Select an Action to Complete"}
+                    </button>
+                  </>
+                ) : (
+                  <div className="training-actions-complete">
+                    <span className="training-complete-icon">
+                      <CheckCircle2 size={32} />
+                    </span>
+
+                    <strong>
+                      You&apos;re all set!
+                    </strong>
+
+                    <p>
+                      All recommended follow-up
+                      actions have been completed.
+                    </p>
+
+
+                  </div>
+                )}
+              </section>
+            )}
+          {trainingCompleted && (
+            <section className="training-completion-screen">
+              <div
+                className="training-confetti"
+                aria-hidden="true"
+              >
+                {Array.from({ length: 32 }).map(
+                  (_, index) => (
+                    <span
+                      key={index}
+                      style={{
+                        "--confetti-x": `${(index * 37) % 100
+                          }%`,
+
+                        "--confetti-delay": `${(index % 8) * 0.11
+                          }s`,
+
+                        "--confetti-duration": `${2.5 + (index % 5) * 0.28
+                          }s`,
+
+                        "--confetti-rotation": `${(index * 53) % 360
+                          }deg`,
+                      }}
+                    />
                   )
                 )}
               </div>
-            </section>
-          )}
 
-          {/* STEP 3 — AI DECISION BRIEF */}
+              <div className="training-completion-content">
+                <span className="training-completion-icon">
+                  <CheckCircle2 size={46} />
+                </span>
 
-          {currentStep === 3 && (
-            <section className="training-wizard-page">
-              {aiError && (
-                <p className="ai-error">{aiError}</p>
-              )}
+                <p className="training-completion-eyebrow">
+                  TRAINING REVIEW COMPLETED
+                </p>
 
-              {!aiBrief ? (
-                <div className="training-ai-start">
-                  <span>
-                    <Brain size={34} />
-                  </span>
+                <h2>You&apos;re all done!</h2>
 
-                  <h3>
-                    Generate Commander Brief
-                  </h3>
+                <p className="training-completion-message">
+                  All five training review steps and
+                  recommended follow-up actions have been
+                  completed.
+                </p>
 
-
-                  <button
-                    type="button"
-                    className="training-primary-button"
-                    onClick={generateBrief}
-                    disabled={
-                      aiLoading ||
-                      personnelAnalysis.length === 0
-                    }
-                  >
-                    {aiLoading ? (
-                      <>
-                        <Loader2
-                          size={18}
-                          className="training-spin"
-                        />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={18} />
-                        Generate AI Brief
-                      </>
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <div className="training-ai-brief">
-                  <div className="training-ai-section">
-                    <span className="training-ai-section-icon summary">
-                      <Brain size={18} />
-                    </span>
-
-                    <div>
-                      <h3>Section Summary</h3>
-                      <p>{aiBrief.summary}</p>
-                    </div>
-                  </div>
-
-                  <div className="training-ai-section positive">
-                    <span className="training-ai-section-icon">
-                      <TrendingUp size={18} />
-                    </span>
-
-                    <div>
-                      <h3>
-                        Positive Observation
-                      </h3>
-
-                      <p>
-                        {aiBrief.positiveObservation}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="training-ai-section concern">
-                    <span className="training-ai-section-icon">
-                      <AlertTriangle size={18} />
-                    </span>
-
-                    <div>
-                      <h3>Main Concern</h3>
-                      <p>{aiBrief.mainConcern}</p>
-                    </div>
-                  </div>
-
-                  {aiBrief.actions?.length > 0 && (
-                    <div className="training-ai-recommendations">
-                      <h3>AI Recommendations</h3>
-
-                      {aiBrief.actions.map(
-                        (action, index) => (
-                          <div
-                            className="training-ai-recommendation-row"
-                            key={`${action.title}-${index}`}
-                          >
-                            <CheckCircle2 size={18} />
-
-                            <div>
-                              <strong>
-                                {action.title}
-                              </strong>
-
-                              {action.description && (
-                                <p>
-                                  {action.description}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    className="training-secondary-button"
-                    onClick={generateBrief}
-                    disabled={aiLoading}
-                  >
-                    {aiLoading ? (
-                      <>
-                        <Loader2
-                          size={17}
-                          className="training-spin"
-                        />
-                        Regenerating...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw size={17} />
-                        Regenerate Brief
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* STEP 4 — TRAINING PLAN */}
-
-          {currentStep === 4 && (
-            <section className="training-wizard-page">
-              <div className="training-plan-focus-card">
-                <div className="training-plan-focus-top">
-                  <span className="training-plan-focus-label">
-                    THIS WEEK&apos;S FOCUS
-                  </span>
-                </div>
-
-                <div className="training-plan-focus-content">
-                  <h3>
-                    {weakestStationSummary.station}
-                  </h3>
-
-                  <p>
-                    Identified as the most common weakest IPPT
-                    component in the section.
+                {trainingCompletedAt && (
+                  <p className="training-completion-date">
+                    Completed on{" "}
+                    {new Date(
+                      trainingCompletedAt
+                    ).toLocaleDateString("en-SG", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
                   </p>
-                </div>
-              </div>
-
-              <div className="training-weekly-plan">
-                {weeklyTrainingPlan.map(
-                  (session, index) => {
-                    const SessionIcon =
-                      session.icon;
-
-                    return (
-                      <article
-                        className="training-session-row"
-                        key={session.day}
-                      >
-                        <div className="training-session-marker">
-                          <span>{index + 1}</span>
-
-                          {index <
-                            weeklyTrainingPlan.length -
-                            1 && <i />}
-                        </div>
-
-                        <div className="training-session-content">
-                          <div className="training-session-day">
-                            {session.day}
-                          </div>
-
-                          <div className="training-session-heading">
-                            <SessionIcon size={19} />
-
-                            <h3>
-                              {session.title}
-                            </h3>
-                          </div>
-
-                          <p>
-                            {session.description}
-                          </p>
-                        </div>
-                      </article>
-                    );
-                  }
                 )}
-              </div>
 
-              <div className="training-priority-order">
-                <h3>Training Priority</h3>
-
-                {Object.entries(
-                  weakestStationSummary.counts
-                )
-                  .sort((a, b) => b[1] - a[1])
-                  .map(
-                    ([station, count], index) => (
-                      <div key={station}>
-                        <span>
-                          {index === 0
-                            ? "🥇"
-                            : index === 1
-                              ? "🥈"
-                              : "🥉"}
-                        </span>
-
-                        <p>{station}</p>
-
-                        <strong>
-                          {count} personnel
-                        </strong>
-                      </div>
-                    )
-                  )}
-              </div>
-            </section>
-          )}
-
-          {/* STEP 5 — COMMANDER FOLLOW-UP */}
-
-          {currentStep === 5 && (
-            <section className="training-wizard-page">
-              <div className="training-follow-up-heading">
-                <div>
-                  <ClipboardCheck size={23} />
+                <div className="training-completion-summary">
+                  <div>
+                    <strong>5</strong>
+                    <span>Steps completed</span>
+                  </div>
 
                   <div>
-                    <h3>Recommended Actions</h3>
+                    <strong>
+                      {localRecommendedActions.length}
+                    </strong>
 
-
+                    <span>Actions reviewed</span>
                   </div>
                 </div>
 
                 <button
                   type="button"
-                  className="training-refresh-icon-button"
-                  onClick={refreshRecommendedActions}
-                  disabled={refreshing}
-                  aria-label="Refresh recommended actions"
-                  title="Refresh recommended actions"
+                  className="training-complete-again-button"
+                  onClick={completeTrainingAgain}
                 >
-                  <RefreshCw
-                    size={18}
-                    className={
-                      refreshing
-                        ? "training-spin"
-                        : ""
-                    }
-                  />
+                  <RefreshCw size={18} />
+                  Complete Again
                 </button>
               </div>
-
-              {activeRecommendedActions.length >
-                0 ? (
-                <>
-                  <div className="training-checklist">
-                    {activeRecommendedActions.map(
-                      (action) => {
-                        const ActionIcon =
-                          action.icon;
-
-                        const selected = Boolean(
-                          selectedActions[action.id]
-                        );
-
-                        return (
-                          <button
-                            type="button"
-                            className={`training-checklist-item ${selected
-                              ? "completed"
-                              : ""
-                              }`}
-                            key={action.id}
-                            onClick={() =>
-                              toggleAction(action.id)
-                            }
-                            aria-pressed={selected}
-                          >
-                            <span className="training-check-box">
-                              {selected && (
-                                <Check size={15} />
-                              )}
-                            </span>
-
-                            <span className="training-action-icon">
-                              <ActionIcon size={18} />
-                            </span>
-
-                            <span className="training-action-copy">
-                              <strong>
-                                {action.title}
-                              </strong>
-
-                              <small>
-                                {action.description}
-                              </small>
-                            </span>
-                          </button>
-                        );
-                      }
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    className="training-complete-selected-button"
-                    onClick={completeSelectedActions}
-                    disabled={
-                      selectedActionCount === 0
-                    }
-                  >
-                    <CheckCircle2 size={18} />
-
-                    {selectedActionCount > 0
-                      ? `Complete Selected (${selectedActionCount})`
-                      : "Select an Action to Complete"}
-                  </button>
-                </>
-              ) : (
-                <div className="training-actions-complete">
-                  <span className="training-complete-icon">
-                    <CheckCircle2 size={32} />
-                  </span>
-
-                  <strong>
-                    You&apos;re all set!
-                  </strong>
-
-                  <p>
-                    All recommended follow-up
-                    actions have been completed.
-                  </p>
-
-
-                </div>
-              )}
             </section>
           )}
         </main>
+        {!trainingCompleted && (
+          <div className="training-step-navigation">
+            <button
+              type="button"
+              className="training-nav-btn secondary"
+              onClick={goToPreviousStep}
+              disabled={currentStep === 1}
+            >
+              <ChevronLeft size={18} />
+              Back
+            </button>
 
-        <div className="training-step-navigation">
-          <button
-            type="button"
-            className="training-nav-btn secondary"
-            onClick={goToPreviousStep}
-            disabled={currentStep === 1}
-          >
-            <ChevronLeft size={18} />
-            Back
-          </button>
-
-          <button
-            type="button"
-            className="training-nav-btn primary"
-            onClick={goToNextStep}
-            disabled={currentStep === TOTAL_STEPS}
-          >
-            Next
-            <ChevronRight size={18} />
-          </button>
-        </div>
+            {currentStep < TOTAL_STEPS ? (
+              <button
+                type="button"
+                className="training-nav-btn primary"
+                onClick={goToNextStep}
+              >
+                Next
+                <ChevronRight size={18} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="training-nav-btn primary training-done-button"
+                onClick={finishTraining}
+                disabled={!allActionsCompleted}
+                title={
+                  allActionsCompleted
+                    ? "Complete training review"
+                    : "Complete all recommended actions first"
+                }
+              >
+                Done
+                <CheckCircle2 size={18} />
+              </button>
+            )}
+          </div>
+        )}
 
         <CommanderNav activePage="commander-training" />
       </div>
