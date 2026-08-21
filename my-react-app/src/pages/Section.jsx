@@ -214,12 +214,17 @@ export default function Section() {
     );
   }
 
-  const filteredPersonnel = personnel.filter(
-    (person) =>
+  const filteredPersonnel = personnel
+    .filter((person) =>
       getDisplayName(person)
         .toLowerCase()
         .includes(searchTerm.toLowerCase())
-  );
+    )
+    .sort((a, b) =>
+      getDisplayName(a).localeCompare(
+        getDisplayName(b)
+      )
+    );
 
   const activeHistory =
     scoreType === "official"
@@ -441,29 +446,20 @@ export default function Section() {
                     {isExpanded && (
                       <PersonnelDetails
                         person={person}
-                        officialRecords={
-                          officialRecords
-                        }
-                        practiceRecords={
-                          practiceRecords
-                        }
+                        scoreType={scoreType}
+                        officialRecords={officialRecords}
+                        practiceRecords={practiceRecords}
                         prediction={
-                          personnelPredictions[
-                          userID
-                          ] || null
+                          personnelPredictions[userID] || null
                         }
                         predictionLoading={Boolean(
                           predictionLoading[userID]
                         )}
                         predictionError={
-                          predictionErrors[
-                          userID
-                          ] || ""
+                          predictionErrors[userID] || ""
                         }
                         onGeneratePrediction={() =>
-                          handleGeneratePersonnelPrediction(
-                            person
-                          )
+                          handleGeneratePersonnelPrediction(person)
                         }
                       />
                     )}
@@ -511,16 +507,17 @@ export default function Section() {
 
                 <button
                   type="button"
-                  className="coach-btn"
-                  onClick={
-                    handleGenerateAIGroupPlan
-                  }
+                  className="coach-btn section-group-plan-button"
+                  onClick={handleGenerateAIGroupPlan}
                   disabled={aiLoading}
                 >
                   {aiLoading ? (
                     <>
-                      Generating
-                      <span className="loading-dots" />
+                      <Loader2
+                        size={17}
+                        className="section-spin"
+                      />
+                      Generating Plan...
                     </>
                   ) : (
                     "Generate AI Group Plan"
@@ -647,6 +644,7 @@ export default function Section() {
 
 function PersonnelDetails({
   person,
+  scoreType,
   officialRecords = [],
   practiceRecords = [],
   prediction,
@@ -654,41 +652,34 @@ function PersonnelDetails({
   predictionError,
   onGeneratePrediction,
 }) {
-  const latestOfficial =
-    getLatestRecord(officialRecords);
+  const isOfficial = scoreType === "official";
 
-  const latestPractice =
-    getLatestRecord(practiceRecords);
+  const selectedRecords =
+    sortRecordsChronologically(
+      isOfficial
+        ? officialRecords
+        : practiceRecords
+    );
 
-  const previousPractice =
-    getPreviousRecord(practiceRecords);
+  const latestRecord =
+    getLatestRecord(selectedRecords);
 
-  const officialScore =
-    getRecordScore(latestOfficial);
+  const previousRecord =
+    getPreviousRecord(selectedRecords);
 
-  const practiceScore =
-    getRecordScore(latestPractice);
+  const latestScore =
+    getRecordScore(latestRecord);
 
-  const previousPracticeScore =
-    getRecordScore(previousPractice);
+  const previousScore =
+    getRecordScore(previousRecord);
 
   const trend = calculateScoreTrend(
-    practiceScore,
-    previousPracticeScore
+    latestScore,
+    previousScore
   );
 
-  const performanceRecord =
-    latestPractice || latestOfficial;
-
   const stationAnalysis =
-    getStationAnalysis(performanceRecord);
-
-  const runtime =
-    latestPractice?.runtime ??
-    latestPractice?.runTime ??
-    latestOfficial?.runtime ??
-    latestOfficial?.runTime ??
-    "N/A";
+    getStationAnalysis(latestRecord);
 
   return (
     <div
@@ -697,8 +688,6 @@ function PersonnelDetails({
         event.stopPropagation()
       }
     >
-      {/* PERSONNEL DETAILS */}
-
       <h4>Personnel Details</h4>
 
       <div className="section-details-list">
@@ -711,258 +700,298 @@ function PersonnelDetails({
           <b>Unit:</b>{" "}
           {person.unit || "N/A"}
         </p>
-
       </div>
 
       <hr />
 
-      {/* 2 × 3 PERFORMANCE GRID */}
+      {/* FULL-WIDTH SUMMARY BOXES */}
 
-      <div className="section-performance-grid">
-        <div className="section-performance-stat">
-          <span>Official</span>
+      <div className="section-performance-list">
+        <div className="section-performance-row">
+          <span className="section-performance-label">
+            {isOfficial
+              ? "Official"
+              : "Practice"}
+          </span>
 
-          <strong
-            style={{
-              color: getIPPTColor(
-                latestOfficial?.result
-              ),
-            }}
-          >
-            {latestOfficial?.result || "N/A"}
-          </strong>
+          <div className="section-performance-value">
+            {isOfficial ? (
+              <>
+                <strong
+                  style={{
+                    color: getIPPTColor(
+                      latestRecord?.result
+                    ),
+                  }}
+                >
+                  {latestRecord?.result || "N/A"}
+                </strong>
 
-          <small>
-            {officialScore !== null
-              ? `${officialScore} points`
-              : "No record"}
-          </small>
+                <small>
+                  {latestScore !== null
+                    ? `${latestScore} points`
+                    : "No official record"}
+                </small>
+              </>
+            ) : (
+              <>
+                <strong>
+                  {latestScore !== null
+                    ? latestScore
+                    : "N/A"}
+                </strong>
+
+                <small>
+                  {latestRecord
+                    ? formatDate(
+                      latestRecord.date ||
+                      latestRecord.createdAt
+                    )
+                    : "No practice record"}
+                </small>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="section-performance-stat">
-          <span>Practice</span>
+        <div className="section-performance-row">
+          <span className="section-performance-label">
+            Score change
+          </span>
 
-          <strong>
-            {practiceScore !== null
-              ? practiceScore
-              : "N/A"}
-          </strong>
+          <div className="section-performance-value">
+            <strong
+              className={`section-score-change ${trend.className}`}
+            >
+              {trend.value}
+            </strong>
 
-          <small>
-            {latestPractice
-              ? formatDate(
-                latestPractice.date ||
-                latestPractice.createdAt
-              )
-              : "No record"}
-          </small>
+            <small>{trend.label}</small>
+          </div>
         </div>
 
-        <div className="section-performance-stat">
-          <span>Score change</span>
+        <div className="section-performance-row">
+          <span className="section-performance-label">
+            Strongest
+          </span>
 
-          <strong
-            className={`section-score-change ${trend.className}`}
-          >
-            {trend.value}
-          </strong>
+          <div className="section-performance-value">
+            <strong>
+              {stationAnalysis.strongest}
+            </strong>
 
-          <small>{trend.label}</small>
+            <small>Calculator-based</small>
+          </div>
         </div>
 
-        <div className="section-performance-stat">
-          <span>Runtime</span>
+        <div className="section-performance-row">
+          <span className="section-performance-label">
+            Needs attention
+          </span>
 
-          <strong>{runtime}</strong>
+          <div className="section-performance-value">
+            <strong>
+              {stationAnalysis.weakest}
+            </strong>
 
-          <small>
-            {latestPractice
-              ? "Latest practice"
-              : latestOfficial
-                ? "Latest official"
-                : "No record"}
-          </small>
-        </div>
-
-        <div className="section-performance-stat">
-          <span>Strongest</span>
-
-          <strong>
-            {stationAnalysis.strongest}
-          </strong>
-
-          <small>Calculator-based</small>
-        </div>
-
-        <div className="section-performance-stat">
-          <span>Needs attention</span>
-
-          <strong>
-            {stationAnalysis.weakest}
-          </strong>
-
-          <small>Calculator-based</small>
+            <small>Calculator-based</small>
+          </div>
         </div>
       </div>
 
-      {/* OFFICIAL GRAPH */}
-
       <hr />
+
+      {/* GRAPH MATCHES THE SELECTED TOGGLE */}
 
       <div className="section-history-heading">
         <h4>
-          Past 5 Official IPPT Records
+          Past 5{" "}
+          {isOfficial
+            ? "Official"
+            : "Practice"}{" "}
+          IPPT Records
         </h4>
 
         <span>
-          {officialRecords.length}{" "}
-          {officialRecords.length === 1
+          {selectedRecords.length}{" "}
+          {selectedRecords.length === 1
             ? "record"
             : "records"}
         </span>
       </div>
 
       <IPPTMiniGraph
-        records={officialRecords}
+        records={selectedRecords}
+        recordType={
+          isOfficial
+            ? "Official"
+            : "Practice"
+        }
       />
 
-      {/* AI PASSING PROBABILITY */}
+      {/* AI PREDICTION ONLY ON OFFICIAL SIDE */}
 
-      <hr />
+      {isOfficial && (
+        <>
+          <hr />
 
-      <div className="section-personnel-prediction">
-        <div className="section-prediction-title">
-          <Sparkles size={18} />
+          <div className="section-personnel-prediction">
+            <div className="section-prediction-title">
+              <Sparkles size={18} />
 
-          <div>
-            <h4>
-              AI Passing Probability
-            </h4>
+              <div>
+                <h4>
+                  AI Passing Probability
+                </h4>
 
-            <p>
-              Estimate this personnel&apos;s
-              chance of passing the next
-              official IPPT.
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className="section-prediction-button"
-          onClick={onGeneratePrediction}
-          disabled={predictionLoading}
-        >
-          {predictionLoading ? (
-            <>
-              <Loader2
-                size={17}
-                className="section-spin"
-              />
-
-              Generating Prediction...
-            </>
-          ) : prediction ? (
-            "Regenerate Prediction"
-          ) : (
-            "Generate Prediction"
-          )}
-        </button>
-
-        {predictionError && (
-          <p className="ai-error">
-            {predictionError}
-          </p>
-        )}
-
-        {prediction && (
-          <div className="section-prediction-result">
-            <div className="section-prediction-percentage">
-              <strong>
-                {clampScore(
-                  prediction.passingProbability
-                )}
-                %
-              </strong>
-
-              <span>
-                Estimated chance of passing
-              </span>
+                <p>
+                  Estimate this personnel&apos;s
+                  chance of passing the next
+                  official IPPT.
+                </p>
+              </div>
             </div>
 
-            <div className="section-prediction-details">
-              <p>
-                <b>Risk Level:</b>{" "}
-                {prediction.riskLevel ||
-                  "N/A"}
-              </p>
+            <button
+              type="button"
+              className="section-prediction-button"
+              onClick={onGeneratePrediction}
+              disabled={predictionLoading}
+            >
+              {predictionLoading ? (
+                <>
+                  <Loader2
+                    size={17}
+                    className="section-spin"
+                  />
 
-              <p>
-                <b>Reason:</b>{" "}
-                {prediction.reason || "N/A"}
-              </p>
+                  Generating Prediction...
+                </>
+              ) : prediction ? (
+                "Regenerate Prediction"
+              ) : (
+                "Generate Prediction"
+              )}
+            </button>
 
-              <p>
-                <b>
-                  Recommended Action:
-                </b>{" "}
-                {prediction.recommendedAction ||
-                  "N/A"}
+            {predictionError && (
+              <p className="ai-error">
+                {predictionError}
               </p>
-            </div>
+            )}
+
+            {prediction && (
+              <div className="section-prediction-result">
+                <div className="section-prediction-percentage">
+                  <strong>
+                    {clampScore(
+                      prediction.passingProbability
+                    )}
+                    %
+                  </strong>
+
+                  <span>
+                    Estimated chance of passing
+                  </span>
+                </div>
+
+                <div className="section-prediction-details">
+                  <p>
+                    <b>Risk Level:</b>{" "}
+                    {prediction.riskLevel ||
+                      "N/A"}
+                  </p>
+
+                  <p>
+                    <b>Reason:</b>{" "}
+                    {prediction.reason ||
+                      "N/A"}
+                  </p>
+
+                  <p>
+                    <b>
+                      Recommended Action:
+                    </b>{" "}
+                    {prediction.recommendedAction ||
+                      "N/A"}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
 
-function IPPTMiniGraph({ records }) {
-  const [hoveredIndex, setHoveredIndex] = useState(null);
-  const [selectedIndex, setSelectedIndex] = useState(null);
+function IPPTMiniGraph({
+  records,
+  recordType = "Official",
+}) {
+  const [hoveredIndex, setHoveredIndex] =
+    useState(null);
+
+  const [selectedIndex, setSelectedIndex] =
+    useState(null);
 
   const width = 300;
   const height = 160;
   const padding = 32;
 
-  if (!Array.isArray(records) || records.length === 0) {
+
+  const sortedRecords =
+    sortRecordsChronologically(records);
+
+  if (sortedRecords.length === 0) {
     return (
       <p className="commander-text section-no-history">
-        No official IPPT records available.
+        No {recordType.toLowerCase()} IPPT
+        records available.
       </p>
     );
   }
 
-  const scores = records.map((record) =>
-    Number(
-      record.totalScore ??
+  const scores = sortedRecords.map(
+    (record) =>
+      Number(
+        record.totalScore ??
         record.totalscore ??
         record.ipptScore ??
         0
-    )
+      )
   );
 
-  const points = scores.map((score, index) => {
-    const x =
-      padding +
-      (index * (width - padding * 2)) /
-        Math.max(records.length - 1, 1);
+  const points = scores.map(
+    (score, index) => {
+      const x =
+        padding +
+        (index *
+          (width - padding * 2)) /
+        Math.max(
+          sortedRecords.length - 1,
+          1
+        );
 
-    const y =
-      height -
-      padding -
-      (score / 100) *
+      const y =
+        height -
+        padding -
+        (score / 100) *
         (height - padding * 2);
 
-    return {
-      x,
-      y,
-      score,
-    };
-  });
+      return {
+        x,
+        y,
+        score,
+      };
+    }
+  );
 
   const linePoints = points
-    .map((point) => `${point.x},${point.y}`)
+    .map(
+      (point) =>
+        `${point.x},${point.y}`
+    )
     .join(" ");
 
   const activeIndex =
@@ -972,7 +1001,7 @@ function IPPTMiniGraph({ records }) {
 
   const activeRecord =
     activeIndex !== null
-      ? records[activeIndex]
+      ? sortedRecords[activeIndex]
       : null;
 
   const handlePointClick = (index) => {
@@ -981,12 +1010,16 @@ function IPPTMiniGraph({ records }) {
     );
   };
 
-  const handlePointKeyDown = (event, index) => {
+  const handlePointKeyDown = (
+    event,
+    index
+  ) => {
     if (
       event.key === "Enter" ||
       event.key === " "
     ) {
       event.preventDefault();
+
       handlePointClick(index);
     }
   };
@@ -994,15 +1027,18 @@ function IPPTMiniGraph({ records }) {
   return (
     <div className="section-ippt-graph-wrap">
       <p className="section-graph-instruction">
-        Tap or hover over a score to view its IPPT breakdown.
+        Tap or hover over a score to view its
+        IPPT breakdown.
       </p>
 
       <svg
         width="100%"
         height={height}
         viewBox={`0 0 ${width} ${height}`}
-        aria-label="Past five official IPPT scores"
+        aria-label={`Past five ${recordType.toLowerCase()} IPPT scores`}
       >
+        {/* Y AXIS */}
+
         <line
           x1={padding}
           y1={padding}
@@ -1010,6 +1046,8 @@ function IPPTMiniGraph({ records }) {
           y2={height - padding}
           stroke="#94a3b8"
         />
+
+        {/* X AXIS */}
 
         <line
           x1={padding}
@@ -1028,6 +1066,8 @@ function IPPTMiniGraph({ records }) {
           Score
         </text>
 
+        {/* SCORE LINE */}
+
         <polyline
           points={linePoints}
           fill="none"
@@ -1038,18 +1078,21 @@ function IPPTMiniGraph({ records }) {
         />
 
         {points.map((point, index) => {
+          const record =
+            sortedRecords[index];
+
           const isActive =
             activeIndex === index;
 
           return (
             <g
-              key={records[index].id || index}
+              key={record.id || index}
               className="section-graph-point"
               role="button"
               tabIndex="0"
-              aria-label={`View IPPT details for ${formatDate(
-                records[index].date ||
-                  records[index].createdAt
+              aria-label={`View ${recordType.toLowerCase()} IPPT details for ${formatDate(
+                record.date ||
+                record.createdAt
               )}`}
               onMouseEnter={() =>
                 setHoveredIndex(index)
@@ -1067,13 +1110,16 @@ function IPPTMiniGraph({ records }) {
                 )
               }
             >
-              {/* Larger invisible touch target */}
+              {/* Larger invisible touch area */}
+
               <circle
                 cx={point.x}
                 cy={point.y}
                 r="14"
                 fill="transparent"
               />
+
+              {/* Visible point */}
 
               <circle
                 cx={point.x}
@@ -1085,8 +1131,12 @@ function IPPTMiniGraph({ records }) {
                     : "#0b4f8a"
                 }
                 stroke="#ffffff"
-                strokeWidth={isActive ? 2 : 1}
+                strokeWidth={
+                  isActive ? 2 : 1
+                }
               />
+
+              {/* SCORE */}
 
               <text
                 x={point.x}
@@ -1095,11 +1145,15 @@ function IPPTMiniGraph({ records }) {
                 fill="#062b55"
                 textAnchor="middle"
                 fontWeight={
-                  isActive ? "700" : "500"
+                  isActive
+                    ? "700"
+                    : "500"
                 }
               >
                 {point.score}
               </text>
+
+              {/* DATE */}
 
               <text
                 x={point.x}
@@ -1109,8 +1163,8 @@ function IPPTMiniGraph({ records }) {
                 textAnchor="middle"
               >
                 {formatShortDate(
-                  records[index].date ||
-                    records[index].createdAt
+                  record.date ||
+                  record.createdAt
                 )}
               </text>
             </g>
@@ -1119,8 +1173,9 @@ function IPPTMiniGraph({ records }) {
       </svg>
 
       {activeRecord ? (
-        <OfficialRecordBreakdown
+        <IPPTRecordBreakdown
           record={activeRecord}
+          recordType={recordType}
           onClose={() => {
             setSelectedIndex(null);
             setHoveredIndex(null);
@@ -1128,15 +1183,17 @@ function IPPTMiniGraph({ records }) {
         />
       ) : (
         <div className="section-graph-empty-selection">
-          Select a score to view push-ups, sit-ups and run details.
+          Select a score to view push-ups,
+          sit-ups and run details.
         </div>
       )}
     </div>
   );
 }
 
-function OfficialRecordBreakdown({
+function IPPTRecordBreakdown({
   record,
+  recordType,
   onClose,
 }) {
   const totalScore =
@@ -1176,11 +1233,12 @@ function OfficialRecordBreakdown({
           <strong>
             {formatDate(
               record?.date ||
-                record?.createdAt
+              record?.createdAt
             )}
           </strong>
 
           <span>
+            {recordType} ·{" "}
             {record?.result || "N/A"} ·{" "}
             {totalScore} points
           </span>
@@ -1230,8 +1288,6 @@ function OfficialRecordBreakdown({
           </small>
         </div>
       </div>
-
-      
     </div>
   );
 }
@@ -1248,27 +1304,32 @@ function getDisplayName(user) {
     "N/A"
   );
 }
-
 function getLatestRecord(records = []) {
-  if (
-    !Array.isArray(records) ||
-    records.length === 0
-  ) {
+  const sortedRecords =
+    sortRecordsChronologically(records);
+
+  if (sortedRecords.length === 0) {
     return null;
   }
 
-  return records[records.length - 1];
+  // Newest record
+  return sortedRecords[
+    sortedRecords.length - 1
+  ];
 }
 
 function getPreviousRecord(records = []) {
-  if (
-    !Array.isArray(records) ||
-    records.length < 2
-  ) {
+  const sortedRecords =
+    sortRecordsChronologically(records);
+
+  if (sortedRecords.length < 2) {
     return null;
   }
 
-  return records[records.length - 2];
+  // Record immediately before newest
+  return sortedRecords[
+    sortedRecords.length - 2
+  ];
 }
 
 function getRecordScore(record) {
@@ -1507,4 +1568,44 @@ function getIPPTColor(result) {
   }
 
   return "#0b4f8a";
+}
+function getRecordTimestamp(record) {
+  if (!record) return 0;
+
+  const value =
+    record.date ??
+    record.createdAt ??
+    record.updatedAt ??
+    null;
+
+  if (!value) return 0;
+
+  // Firestore Timestamp
+  if (typeof value?.toDate === "function") {
+    return value.toDate().getTime();
+  }
+
+  // Firestore timestamp-like object
+  if (typeof value?.seconds === "number") {
+    return value.seconds * 1000;
+  }
+
+  // JavaScript Date
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  // ISO/string date
+  const parsed = new Date(value).getTime();
+
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function sortRecordsChronologically(records = []) {
+  if (!Array.isArray(records)) return [];
+  return [...records].sort(
+    (a, b) =>
+      getRecordTimestamp(a) -
+      getRecordTimestamp(b)
+  );
 }
